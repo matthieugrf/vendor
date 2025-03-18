@@ -1,0 +1,386 @@
+[options]
+girs_directories = ["../gir-files", "../gst-gir-files"]
+library = "GstRtspServer"
+version = "1.0"
+min_cfg_version = "1.14"
+work_mode = "normal"
+concurrency = "send+sync"
+generate_safety_asserts = true
+single_version_file = true
+generate_display_trait = false
+trust_return_value_nullability = true
+
+external_libraries = [
+    "Gio",
+    "GLib",
+    "GObject",
+    "Gst",
+    "GstNet",
+    "GstRtsp",
+    "GstSDP"
+]
+
+generate = [
+    "GstRtspServer.RTSPAddressPoolResult",
+    "GstRtspServer.RTSPFilterResult",
+    "GstRtspServer.RTSPMediaFactoryURI",
+    "GstRtspServer.RTSPMediaStatus",
+    "GstRtspServer.RTSPOnvifClient",
+    "GstRtspServer.RTSPOnvifMedia",
+    "GstRtspServer.RTSPOnvifServer",
+    "GstRtspServer.RTSPPublishClockMode",
+    "GstRtspServer.RTSPSuspendMode",
+    "GstRtspServer.RTSPThreadPool",
+    "GstRtspServer.RTSPThreadType",
+    "GstRtspServer.RTSPTransportMode",
+]
+
+manual = [
+    "Gio.Cancellable",
+    "Gio.Socket",
+    "Gio.SocketFamily",
+    "Gio.TlsAuthenticationMode",
+    "Gio.TlsCertificate",
+    "Gio.TlsCertificateFlags",
+    "Gio.TlsConnection",
+    "Gio.TlsDatabase",
+    "GLib.Error",
+    "GLib.IOCondition",
+    "GLib.MainContext",
+    "GLib.MainLoop",
+    "GLib.Source",
+    "GLib.ThreadPool",
+    "GObject.Object",
+    "Gst.Bin",
+    "Gst.Clock",
+    "Gst.Element",
+    "Gst.Pad",
+    "Gst.Pipeline",
+    "Gst.State",
+    "GstNet.NetTimeProvider",
+    "GstRtsp.RTSPAuthMethod",
+    "GstRtsp.RTSPLowerTrans",
+    "GstRtsp.RTSPProfile",
+    "GstRtsp.RTSPRangeUnit",
+    "GstRtsp.RTSPResult",
+    "GstRtsp.RTSPStatusCode",
+    "GstRtsp.RTSPUrl",
+]
+
+[[object]]
+name = "Gst.Buffer"
+status = "manual"
+ref_mode = "ref"
+
+[[object]]
+name = "Gst.Caps"
+status = "manual"
+ref_mode = "ref"
+
+[[object]]
+name = "Gst.ClockTime"
+status = "manual"
+conversion_type = "Option"
+
+[[object]]
+name = "Gst.FlowReturn"
+status = "manual"
+must_use = true
+    [object.conversion_type]
+    variant = "Result"
+    ok_type = "gst::FlowSuccess"
+    err_type = "gst::FlowError"
+
+[[object]]
+name = "Gst.Message"
+status = "manual"
+ref_mode = "ref"
+
+[[object]]
+name = "Gst.Object"
+# For renaming the trait...
+status = "manual"
+trait_name = "GstObjectExt"
+
+[[object]]
+name = "Gst.Structure"
+status = "manual"
+ref_mode = "ref"
+
+[[object]]
+name = "GstRtspServer.RTSPAddress"
+status = "generate"
+concurrency = "send"
+
+[[object]]
+name = "GstRtspServer.RTSPAddressFlags"
+status = "generate"
+    [[object.member]]
+    name = "none"
+    ignore = true
+
+[[object]]
+name = "GstRtspServer.RTSPAddressPool"
+status = "generate"
+manual_traits = ["RTSPAddressPoolExtManual"]
+
+    [[object.function]]
+    name = "add_range"
+        [object.function.return]
+        bool_return_is_error = "Failed to add address range"
+
+    [[object.function]]
+    name = "acquire_address"
+        [object.function.return]
+        nullable_return_is_error = "Failed to acquire address"
+
+    [[object.function]]
+    name = "reserve_address"
+    manual = true
+
+[[object]]
+name="GstRtspServer.RTSPAuth"
+status="generate"
+manual_traits = ["RTSPAuthExtManual"]
+
+    [[object.function]]
+    name = "check"
+        [object.function.return]
+        bool_return_is_error = "Check failed"
+
+    [[object.function]]
+    name = "connect_accept_certificate"
+    # Use Result<(), LoggableError>
+    manual = true
+
+    [[object.function]]
+    name = "set_default_token"
+    # gir forgets mut
+    manual = true
+
+[[object]]
+name = "GstRtspServer.RTSPClient"
+status = "generate"
+manual_traits = ["RTSPClientExtManual"]
+
+    [[object.function]]
+    name = "attach"
+    manual = true
+
+    [[object.function]]
+    name = "set_send_func"
+    # user_data takes raw pointer
+    ignore = true
+
+[[object]]
+name = "GstRtspServer.RTSPContext"
+status = "manual"
+ref_mode = "ref"
+
+[[object]]
+name = "GstRtspServer.RTSPMedia"
+status = "generate"
+manual_traits = ["RTSPMediaExtManual"]
+
+    [[object.function]]
+    name = "suspend"
+        [object.function.return]
+        bool_return_is_error = "Failed to suspend media"
+
+    [[object.function]]
+    name = "unprepare"
+        [object.function.return]
+        bool_return_is_error = "Failed to unprepare media"
+
+    [[object.function]]
+    name = "prepare"
+        [object.function.return]
+        bool_return_is_error = "Failed to prepare media"
+
+    [[object.function]]
+    name = "unsuspend"
+        [object.function.return]
+        bool_return_is_error = "Failed to unsuspend media"
+
+    [[object.function]]
+    name = "take_pipeline"
+    manual = true
+
+[[object]]
+name = "GstRtspServer.RTSPMediaFactory"
+status = "generate"
+manual_traits = ["RTSPMediaFactoryExtManual"]
+
+    [[object.function]]
+    name = "add_role_from_structure"
+    # Different structure mutability needed
+    manual = true
+
+    [[object.function]]
+    name = "construct"
+        [object.function.return]
+        nullable_return_is_error = "Failed to construct media"
+
+    [[object.function]]
+    name = "create_element"
+        [object.function.return]
+        nullable_return_is_error = "Failed to create media element"
+
+
+[[object]]
+name="GstRtspServer.RTSPMountPoints"
+status="generate"
+    [[object.function]]
+    name = "make_path"
+        [object.function.return]
+        nullable_return_is_error = "Failed to make path"
+
+[[object]]
+name = "GstRtspServer.RTSPOnvifMediaFactory"
+status = "generate"
+manual_traits = ["RTSPMediaExtManual"]
+    [[object.function]]
+    name = "requires_backchannel"
+    # on extension trait
+    manual = true
+
+[[object]]
+name = "GstRtspServer.RTSPServer"
+status = "generate"
+manual_traits = ["RTSPServerExtManual"]
+
+    [[object.function]]
+    name = "attach"
+    manual = true
+
+    [[object.function]]
+    name = "io_func"
+        [object.function.return]
+        bool_return_is_error = "Failed to connect the source"
+
+    [[object.function]]
+    name = "transfer_connection"
+        [object.function.return]
+        bool_return_is_error = "Failed to transfer to the connection"
+
+[[object]]
+name="GstRtspServer.RTSPSession"
+status="generate"
+    [[object.function]]
+    name = "get_media"
+    # Map to dup_media if new enough as get_media is not thread-safe
+    manual = true
+    [[object.function]]
+    name = "dup_media"
+    ignore = true
+
+[[object]]
+name = "GstRtspServer.RTSPSessionMedia"
+status = "generate"
+
+    [[object.function]]
+    name = "set_state"
+        [object.function.return]
+        bool_return_is_error = "Failed to set state of session media"
+
+[[object]]
+name = "GstRtspServer.RTSPSessionPool"
+status = "generate"
+manual_traits = ["RTSPSessionPoolExtManual"]
+
+    [[object.function]]
+    name = "remove"
+        [object.function.return]
+        bool_return_is_error = "Failed to remove session from pool"
+
+    [[object.function]]
+    name = "create_watch"
+    # GSource return
+    manual = true
+
+    [[object.function]]
+    name = "create"
+        [object.function.return]
+        nullable_return_is_error = "Failed to create session pool"
+
+[[object]]
+name = "GstRtspServer.RTSPStream"
+status = "generate"
+
+    [[object.function]]
+    name = "query_position"
+    ignore = true
+
+    [[object.function]]
+    name = "query_stop"
+    ignore = true
+
+    [[object.function]]
+    name = "add_transport"
+        [object.function.return]
+        bool_return_is_error = "Failed to add transport"
+
+    [[object.function]]
+    name = "remove_transport"
+        [object.function.return]
+        bool_return_is_error = "Failed to remove transport"
+
+    [[object.function]]
+    name = "join_bin"
+        [object.function.return]
+        bool_return_is_error = "Failed to join bin"
+
+    [[object.function]]
+    name = "leave_bin"
+        [object.function.return]
+        bool_return_is_error = "Failed to leave bin"
+
+    [[object.function]]
+    name = "set_blocked"
+        [object.function.return]
+        bool_return_is_error = "Failed to block/unblock the dataflow"
+
+    [[object.function]]
+    name = "unblock_linked"
+        [object.function.return]
+        bool_return_is_error = "Failed to unblock the dataflow"
+
+    [[object.function]]
+    name = "update_crypto"
+        [object.function.return]
+        bool_return_is_error = "Failed to update crypto"
+
+[[object]]
+name = "GstRtspServer.RTSPStreamTransport"
+status = "generate"
+concurrency = "none"
+
+    [[object.function]]
+    name = "send_rtcp"
+        [object.function.return]
+        bool_return_is_error = "Failed to send rtcp"
+
+    [[object.function]]
+    name = "send_rtp"
+        [object.function.return]
+        bool_return_is_error = "Failed to send rtp"
+
+    [[object.function]]
+    name = "set_active"
+        [object.function.return]
+        bool_return_is_error = "Failed to set active"
+
+[[object]]
+name = "GstRtspServer.RTSPThread"
+status = "manual"
+ref_mode = "ref"
+
+    [[object.function]]
+    name = "stop"
+    # Moved to RTSPThreadRef
+    ignore = true
+
+[[object]]
+name = "GstRtspServer.RTSPToken"
+status = "manual"
+ref_mode = "ref"
