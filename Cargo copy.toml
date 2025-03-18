@@ -80,21 +80,6 @@ rodio = "0.17"
 cpal = "0.15"
 
 ###################################
-#      Décodage / Vidéo           #
-###################################
-# GStreamer en Rust
-gstreamer = "0.17"
-gstreamer-app = "0.17"
-gstreamer-audio = "0.17"
-gstreamer-video = "0.17"
-gstreamer-rtsp = "0.17"
-gstreamer-rtsp-server = "0.17"
-gstreamer-pbutils = "0.17"
-
-# FFmpeg (bindings bas-niveau)
-ffmpeg-sys = "4.3.3"
-
-###################################
 #           wgpu / winit          #
 ###################################
 wgpu = "0.16"
@@ -117,3 +102,14 @@ bevy_rapier3d = "0.20"
 bevy_kira_audio = "0.12"
 bevy_ecs_tilemap = "0.10"
 
+gstreamer = "0.23.5"
+gstreamer-app = "0.23.5"
+gstreamer-audio = "0.23.5"
+gstreamer-video = "0.23.5"
+gstreamer-rtsp = "0.23.5"
+gstreamer-rtsp-server = "0.23.5"
+gstreamer-pbutils = "0.23.5"
+
+# FFmpeg (bindings bas-niveau)
+ffmpeg-next = "7.1.0"
+ffmpeg-sys-next = "7.1.0"
