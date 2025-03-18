@@ -2,7 +2,7 @@ use std::iter::FromIterator;
 
 use crate::key::Key;
 use crate::repr::Decor;
-use crate::table::{Iter, IterMut, KeyValuePairs, TableLike};
+use crate::table::{Iter, IterMut, KeyValuePairs, TableKeyValue, TableLike};
 use crate::{InternalString, Item, KeyMut, RawString, Table, Value};
 
 /// Type representing a TOML inline table,
@@ -11,8 +11,6 @@ use crate::{InternalString, Item, KeyMut, RawString, Table, Value};
 pub struct InlineTable {
     // `preamble` represents whitespaces in an empty table
     preamble: RawString,
-    // Whether to hide an empty table
-    pub(crate) implicit: bool,
     // prefix before `{` and suffix after `}`
     decor: Decor,
     pub(crate) span: Option<std::ops::Range<usize>>,
@@ -57,15 +55,15 @@ impl InlineTable {
         values
     }
 
-    pub(crate) fn append_values<'s>(
+    pub(crate) fn append_values<'s, 'c>(
         &'s self,
         parent: &[&'s Key],
-        values: &mut Vec<(Vec<&'s Key>, &'s Value)>,
+        values: &'c mut Vec<(Vec<&'s Key>, &'s Value)>,
     ) {
-        for (key, value) in self.items.iter() {
+        for value in self.items.values() {
             let mut path = parent.to_vec();
-            path.push(key);
-            match value {
+            path.push(&value.key);
+            match &value.value {
                 Item::Value(Value::InlineTable(table)) if table.is_dotted() => {
                     table.append_values(&path, values);
                 }
@@ -86,8 +84,8 @@ impl InlineTable {
     pub fn sort_values(&mut self) {
         // Assuming standard tables have their position set and this won't negatively impact them
         self.items.sort_keys();
-        for value in self.items.values_mut() {
-            match value {
+        for kv in self.items.values_mut() {
+            match &mut kv.value {
                 Item::Value(Value::InlineTable(table)) if table.is_dotted() => {
                     table.sort_values();
                 }
@@ -111,55 +109,28 @@ impl InlineTable {
     where
         F: FnMut(&Key, &Value, &Key, &Value) -> std::cmp::Ordering,
     {
-        let modified_cmp =
-            |key1: &Key, val1: &Item, key2: &Key, val2: &Item| -> std::cmp::Ordering {
-                match (val1.as_value(), val2.as_value()) {
-                    (Some(v1), Some(v2)) => compare(key1, v1, key2, v2),
-                    (Some(_), None) => std::cmp::Ordering::Greater,
-                    (None, Some(_)) => std::cmp::Ordering::Less,
-                    (None, None) => std::cmp::Ordering::Equal,
-                }
-            };
+        let modified_cmp = |_: &InternalString,
+                            val1: &TableKeyValue,
+                            _: &InternalString,
+                            val2: &TableKeyValue|
+         -> std::cmp::Ordering {
+            match (val1.value.as_value(), val2.value.as_value()) {
+                (Some(v1), Some(v2)) => compare(&val1.key, v1, &val2.key, v2),
+                (Some(_), None) => std::cmp::Ordering::Greater,
+                (None, Some(_)) => std::cmp::Ordering::Less,
+                (None, None) => std::cmp::Ordering::Equal,
+            }
+        };
 
         self.items.sort_by(modified_cmp);
-        for value in self.items.values_mut() {
-            match value {
+        for kv in self.items.values_mut() {
+            match &mut kv.value {
                 Item::Value(Value::InlineTable(table)) if table.is_dotted() => {
                     table.sort_values_by_internal(compare);
                 }
                 _ => {}
             }
         }
-    }
-
-    /// If a table has no key/value pairs and implicit, it will not be displayed.
-    ///
-    /// # Examples
-    ///
-    /// ```notrust
-    /// [target."x86_64/windows.json".dependencies]
-    /// ```
-    ///
-    /// In the document above, tables `target` and `target."x86_64/windows.json"` are implicit.
-    ///
-    /// ```
-    /// # #[cfg(feature = "parse")] {
-    /// # #[cfg(feature = "display")] {
-    /// use toml_edit::DocumentMut;
-    /// let mut doc = "[a]\n[a.b]\n".parse::<DocumentMut>().expect("invalid toml");
-    ///
-    /// doc["a"].as_table_mut().unwrap().set_implicit(true);
-    /// assert_eq!(doc.to_string(), "[a.b]\n");
-    /// # }
-    /// # }
-    /// ```
-    pub(crate) fn set_implicit(&mut self, implicit: bool) {
-        self.implicit = implicit;
-    }
-
-    /// If a table has no key/value pairs and implicit, it will not be displayed.
-    pub(crate) fn is_implicit(&self) -> bool {
-        self.implicit
     }
 
     /// Change this table's dotted status
@@ -182,34 +153,14 @@ impl InlineTable {
         &self.decor
     }
 
-    /// Returns an accessor to a key's formatting
-    pub fn key(&self, key: &str) -> Option<&'_ Key> {
-        self.items.get_full(key).map(|(_, key, _)| key)
-    }
-
-    /// Returns an accessor to a key's formatting
-    pub fn key_mut(&mut self, key: &str) -> Option<KeyMut<'_>> {
-        use indexmap::map::MutableKeys;
-        self.items
-            .get_full_mut2(key)
-            .map(|(_, key, _)| key.as_mut())
-    }
-
     /// Returns the decor associated with a given key of the table.
-    #[deprecated(since = "0.21.1", note = "Replaced with `key_mut`")]
     pub fn key_decor_mut(&mut self, key: &str) -> Option<&mut Decor> {
-        #![allow(deprecated)]
-        use indexmap::map::MutableKeys;
-        self.items
-            .get_full_mut2(key)
-            .map(|(_, key, _)| key.leaf_decor_mut())
+        self.items.get_mut(key).map(|kv| &mut kv.key.decor)
     }
 
     /// Returns the decor associated with a given key of the table.
-    #[deprecated(since = "0.21.1", note = "Replaced with `key_mut`")]
     pub fn key_decor(&self, key: &str) -> Option<&Decor> {
-        #![allow(deprecated)]
-        self.items.get_full(key).map(|(_, key, _)| key.leaf_decor())
+        self.items.get(key).map(|kv| &kv.key.decor)
     }
 
     /// Set whitespace after before element
@@ -222,21 +173,18 @@ impl InlineTable {
         &self.preamble
     }
 
-    /// The location within the original document
-    ///
-    /// This generally requires an [`ImDocument`][crate::ImDocument].
-    pub fn span(&self) -> Option<std::ops::Range<usize>> {
+    /// Returns the location within the original document
+    pub(crate) fn span(&self) -> Option<std::ops::Range<usize>> {
         self.span.clone()
     }
 
     pub(crate) fn despan(&mut self, input: &str) {
-        use indexmap::map::MutableKeys;
         self.span = None;
         self.decor.despan(input);
         self.preamble.despan(input);
-        for (key, value) in self.items.iter_mut2() {
-            key.despan(input);
-            value.despan(input);
+        for kv in self.items.values_mut() {
+            kv.key.despan(input);
+            kv.value.despan(input);
         }
     }
 }
@@ -247,19 +195,18 @@ impl InlineTable {
         Box::new(
             self.items
                 .iter()
-                .filter(|(_, value)| !value.is_none())
-                .map(|(key, value)| (key.get(), value.as_value().unwrap())),
+                .filter(|&(_, kv)| kv.value.is_value())
+                .map(|(k, kv)| (&k[..], kv.value.as_value().unwrap())),
         )
     }
 
     /// Returns an iterator over key/value pairs.
     pub fn iter_mut(&mut self) -> InlineTableIterMut<'_> {
-        use indexmap::map::MutableKeys;
         Box::new(
             self.items
-                .iter_mut2()
-                .filter(|(_, value)| value.is_value())
-                .map(|(key, value)| (key.as_mut(), value.as_value_mut().unwrap())),
+                .iter_mut()
+                .filter(|(_, kv)| kv.value.is_value())
+                .map(|(_, kv)| (kv.key.as_mut(), kv.value.as_value_mut().unwrap())),
         )
     }
 
@@ -268,22 +215,22 @@ impl InlineTable {
         self.iter().count()
     }
 
-    /// Returns true if the table is empty.
+    /// Returns true iff the table is empty.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
     /// Clears the table, removing all key-value pairs. Keeps the allocated memory for reuse.
     pub fn clear(&mut self) {
-        self.items.clear();
+        self.items.clear()
     }
 
     /// Gets the given key's corresponding entry in the Table for in-place manipulation.
     pub fn entry(&'_ mut self, key: impl Into<InternalString>) -> InlineEntry<'_> {
-        match self.items.entry(key.into().into()) {
+        match self.items.entry(key.into()) {
             indexmap::map::Entry::Occupied(mut entry) => {
                 // Ensure it is a `Value` to simplify `InlineOccupiedEntry`'s code.
-                let scratch = std::mem::take(entry.get_mut());
+                let scratch = std::mem::take(&mut entry.get_mut().value);
                 let scratch = Item::Value(
                     scratch
                         .into_value()
@@ -291,21 +238,23 @@ impl InlineTable {
                         // "safe" value
                         .unwrap_or_else(|_| Value::InlineTable(Default::default())),
                 );
-                *entry.get_mut() = scratch;
+                entry.get_mut().value = scratch;
 
                 InlineEntry::Occupied(InlineOccupiedEntry { entry })
             }
-            indexmap::map::Entry::Vacant(entry) => InlineEntry::Vacant(InlineVacantEntry { entry }),
+            indexmap::map::Entry::Vacant(entry) => {
+                InlineEntry::Vacant(InlineVacantEntry { entry, key: None })
+            }
         }
     }
 
     /// Gets the given key's corresponding entry in the Table for in-place manipulation.
     pub fn entry_format<'a>(&'a mut self, key: &Key) -> InlineEntry<'a> {
         // Accept a `&Key` to be consistent with `entry`
-        match self.items.entry(key.clone()) {
+        match self.items.entry(key.get().into()) {
             indexmap::map::Entry::Occupied(mut entry) => {
                 // Ensure it is a `Value` to simplify `InlineOccupiedEntry`'s code.
-                let scratch = std::mem::take(entry.get_mut());
+                let scratch = std::mem::take(&mut entry.get_mut().value);
                 let scratch = Item::Value(
                     scratch
                         .into_value()
@@ -313,30 +262,33 @@ impl InlineTable {
                         // "safe" value
                         .unwrap_or_else(|_| Value::InlineTable(Default::default())),
                 );
-                *entry.get_mut() = scratch;
+                entry.get_mut().value = scratch;
 
                 InlineEntry::Occupied(InlineOccupiedEntry { entry })
             }
-            indexmap::map::Entry::Vacant(entry) => InlineEntry::Vacant(InlineVacantEntry { entry }),
+            indexmap::map::Entry::Vacant(entry) => InlineEntry::Vacant(InlineVacantEntry {
+                entry,
+                key: Some(key.clone()),
+            }),
         }
     }
     /// Return an optional reference to the value at the given the key.
     pub fn get(&self, key: &str) -> Option<&Value> {
-        self.items.get(key).and_then(|value| value.as_value())
+        self.items.get(key).and_then(|kv| kv.value.as_value())
     }
 
     /// Return an optional mutable reference to the value at the given the key.
     pub fn get_mut(&mut self, key: &str) -> Option<&mut Value> {
         self.items
             .get_mut(key)
-            .and_then(|value| value.as_value_mut())
+            .and_then(|kv| kv.value.as_value_mut())
     }
 
     /// Return references to the key-value pair stored for key, if it is present, else None.
     pub fn get_key_value<'a>(&'a self, key: &str) -> Option<(&'a Key, &'a Item)> {
-        self.items.get_full(key).and_then(|(_, key, value)| {
-            if !value.is_none() {
-                Some((key, value))
+        self.items.get(key).and_then(|kv| {
+            if !kv.value.is_none() {
+                Some((&kv.key, &kv.value))
             } else {
                 None
             }
@@ -345,20 +297,19 @@ impl InlineTable {
 
     /// Return mutable references to the key-value pair stored for key, if it is present, else None.
     pub fn get_key_value_mut<'a>(&'a mut self, key: &str) -> Option<(KeyMut<'a>, &'a mut Item)> {
-        use indexmap::map::MutableKeys;
-        self.items.get_full_mut2(key).and_then(|(_, key, value)| {
-            if !value.is_none() {
-                Some((key.as_mut(), value))
+        self.items.get_mut(key).and_then(|kv| {
+            if !kv.value.is_none() {
+                Some((kv.key.as_mut(), &mut kv.value))
             } else {
                 None
             }
         })
     }
 
-    /// Returns true if the table contains given key.
+    /// Returns true iff the table contains given key.
     pub fn contains_key(&self, key: &str) -> bool {
-        if let Some(value) = self.items.get(key) {
-            value.is_value()
+        if let Some(kv) = self.items.get(key) {
+            kv.value.is_value()
         } else {
             false
         }
@@ -373,59 +324,44 @@ impl InlineTable {
     ) -> &mut Value {
         let key = key.into();
         self.items
-            .entry(Key::new(key))
-            .or_insert(Item::Value(value.into()))
+            .entry(key.clone())
+            .or_insert(TableKeyValue::new(Key::new(key), Item::Value(value.into())))
+            .value
             .as_value_mut()
             .expect("non-value type in inline table")
     }
 
     /// Inserts a key-value pair into the map.
     pub fn insert(&mut self, key: impl Into<InternalString>, value: Value) -> Option<Value> {
-        use indexmap::map::MutableEntryKey;
-        let key = Key::new(key);
-        let value = Item::Value(value);
-        match self.items.entry(key.clone()) {
-            indexmap::map::Entry::Occupied(mut entry) => {
-                entry.key_mut().fmt();
-                let old = std::mem::replace(entry.get_mut(), value);
-                old.into_value().ok()
-            }
-            indexmap::map::Entry::Vacant(entry) => {
-                entry.insert(value);
-                None
-            }
-        }
+        let key = key.into();
+        let kv = TableKeyValue::new(Key::new(key.clone()), Item::Value(value));
+        self.items
+            .insert(key, kv)
+            .and_then(|kv| kv.value.into_value().ok())
     }
 
     /// Inserts a key-value pair into the map.
     pub fn insert_formatted(&mut self, key: &Key, value: Value) -> Option<Value> {
-        use indexmap::map::MutableEntryKey;
-        let value = Item::Value(value);
-        match self.items.entry(key.clone()) {
-            indexmap::map::Entry::Occupied(mut entry) => {
-                *entry.key_mut() = key.clone();
-                let old = std::mem::replace(entry.get_mut(), value);
-                old.into_value().ok()
-            }
-            indexmap::map::Entry::Vacant(entry) => {
-                entry.insert(value);
-                None
-            }
-        }
+        let kv = TableKeyValue::new(key.to_owned(), Item::Value(value));
+        self.items
+            .insert(InternalString::from(key.get()), kv)
+            .filter(|kv| kv.value.is_value())
+            .map(|kv| kv.value.into_value().unwrap())
     }
 
     /// Removes an item given the key.
     pub fn remove(&mut self, key: &str) -> Option<Value> {
         self.items
             .shift_remove(key)
-            .and_then(|value| value.into_value().ok())
+            .and_then(|kv| kv.value.into_value().ok())
     }
 
     /// Removes a key from the map, returning the stored key and value if the key was previously in the map.
     pub fn remove_entry(&mut self, key: &str) -> Option<(Key, Value)> {
-        self.items
-            .shift_remove_entry(key)
-            .and_then(|(key, value)| Some((key, value.into_value().ok()?)))
+        self.items.shift_remove(key).and_then(|kv| {
+            let key = kv.key;
+            kv.value.into_value().ok().map(|value| (key, value))
+        })
     }
 
     /// Retains only the elements specified by the `keep` predicate.
@@ -439,17 +375,17 @@ impl InlineTable {
         F: FnMut(&str, &mut Value) -> bool,
     {
         self.items.retain(|key, item| {
-            item.as_value_mut()
+            item.value
+                .as_value_mut()
                 .map(|value| keep(key, value))
                 .unwrap_or(false)
         });
     }
 }
 
-#[cfg(feature = "display")]
 impl std::fmt::Display for InlineTable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        crate::encode::encode_table(self, f, None, ("", ""))
+        crate::encode::Encode::encode(self, f, None, ("", ""))
     }
 }
 
@@ -458,7 +394,9 @@ impl<K: Into<Key>, V: Into<Value>> Extend<(K, V)> for InlineTable {
         for (key, value) in iter {
             let key = key.into();
             let value = Item::Value(value.into());
-            self.items.insert(key, value);
+            let value = TableKeyValue::new(key, value);
+            self.items
+                .insert(InternalString::from(value.key.get()), value);
         }
     }
 }
@@ -482,8 +420,8 @@ impl IntoIterator for InlineTable {
         Box::new(
             self.items
                 .into_iter()
-                .filter(|(_, value)| value.is_value())
-                .map(|(key, value)| (key.into(), value.into_value().unwrap())),
+                .filter(|(_, kv)| kv.value.is_value())
+                .map(|(k, kv)| (k, kv.value.into_value().unwrap())),
         )
     }
 }
@@ -498,15 +436,13 @@ impl<'s> IntoIterator for &'s InlineTable {
 }
 
 fn decorate_inline_table(table: &mut InlineTable) {
-    use indexmap::map::MutableKeys;
-    for (mut key, value) in table
+    for (key_decor, value) in table
         .items
-        .iter_mut2()
-        .filter(|(_, value)| value.is_value())
-        .map(|(key, value)| (key.as_mut(), value.as_value_mut().unwrap()))
+        .iter_mut()
+        .filter(|&(_, ref kv)| kv.value.is_value())
+        .map(|(_, kv)| (&mut kv.key.decor, kv.value.as_value_mut().unwrap()))
     {
-        key.leaf_decor_mut().clear();
-        key.dotted_decor_mut().clear();
+        key_decor.clear();
         value.decor_mut().clear();
     }
 }
@@ -520,14 +456,13 @@ pub type InlineTableIterMut<'a> = Box<dyn Iterator<Item = (KeyMut<'a>, &'a mut V
 
 impl TableLike for InlineTable {
     fn iter(&self) -> Iter<'_> {
-        Box::new(self.items.iter().map(|(key, value)| (key.get(), value)))
+        Box::new(self.items.iter().map(|(key, kv)| (&key[..], &kv.value)))
     }
     fn iter_mut(&mut self) -> IterMut<'_> {
-        use indexmap::map::MutableKeys;
         Box::new(
             self.items
-                .iter_mut2()
-                .map(|(key, value)| (key.as_mut(), value)),
+                .iter_mut()
+                .map(|(_, kv)| (kv.key.as_mut(), &mut kv.value)),
         )
     }
     fn clear(&mut self) {
@@ -540,7 +475,7 @@ impl TableLike for InlineTable {
                 crate::Entry::Occupied(crate::OccupiedEntry { entry })
             }
             indexmap::map::Entry::Vacant(entry) => {
-                crate::Entry::Vacant(crate::VacantEntry { entry })
+                crate::Entry::Vacant(crate::VacantEntry { entry, key: None })
             }
         }
     }
@@ -550,16 +485,17 @@ impl TableLike for InlineTable {
             indexmap::map::Entry::Occupied(entry) => {
                 crate::Entry::Occupied(crate::OccupiedEntry { entry })
             }
-            indexmap::map::Entry::Vacant(entry) => {
-                crate::Entry::Vacant(crate::VacantEntry { entry })
-            }
+            indexmap::map::Entry::Vacant(entry) => crate::Entry::Vacant(crate::VacantEntry {
+                entry,
+                key: Some(key.to_owned()),
+            }),
         }
     }
     fn get<'s>(&'s self, key: &str) -> Option<&'s Item> {
-        self.items.get(key)
+        self.items.get(key).map(|kv| &kv.value)
     }
     fn get_mut<'s>(&'s mut self, key: &str) -> Option<&'s mut Item> {
-        self.items.get_mut(key)
+        self.items.get_mut(key).map(|kv| &mut kv.value)
     }
     fn get_key_value<'a>(&'a self, key: &str) -> Option<(&'a Key, &'a Item)> {
         self.get_key_value(key)
@@ -582,30 +518,22 @@ impl TableLike for InlineTable {
         self.get_values()
     }
     fn fmt(&mut self) {
-        self.fmt();
+        self.fmt()
     }
     fn sort_values(&mut self) {
-        self.sort_values();
+        self.sort_values()
     }
     fn set_dotted(&mut self, yes: bool) {
-        self.set_dotted(yes);
+        self.set_dotted(yes)
     }
     fn is_dotted(&self) -> bool {
         self.is_dotted()
     }
 
-    fn key(&self, key: &str) -> Option<&'_ Key> {
-        self.key(key)
-    }
-    fn key_mut(&mut self, key: &str) -> Option<KeyMut<'_>> {
-        self.key_mut(key)
-    }
     fn key_decor_mut(&mut self, key: &str) -> Option<&mut Decor> {
-        #![allow(deprecated)]
         self.key_decor_mut(key)
     }
     fn key_decor(&self, key: &str) -> Option<&Decor> {
-        #![allow(deprecated)]
         self.key_decor(key)
     }
 }
@@ -661,7 +589,7 @@ impl<'a> InlineEntry<'a> {
 
 /// A view into a single occupied location in a `IndexMap`.
 pub struct InlineOccupiedEntry<'a> {
-    entry: indexmap::map::OccupiedEntry<'a, Key, Item>,
+    entry: indexmap::map::OccupiedEntry<'a, InternalString, TableKeyValue>,
 }
 
 impl<'a> InlineOccupiedEntry<'a> {
@@ -677,46 +605,47 @@ impl<'a> InlineOccupiedEntry<'a> {
     /// assert_eq!("foo", map.entry("foo").key());
     /// ```
     pub fn key(&self) -> &str {
-        self.entry.key().get()
+        self.entry.key().as_str()
     }
 
     /// Gets a mutable reference to the entry key
     pub fn key_mut(&mut self) -> KeyMut<'_> {
-        use indexmap::map::MutableEntryKey;
-        self.entry.key_mut().as_mut()
+        self.entry.get_mut().key.as_mut()
     }
 
     /// Gets a reference to the value in the entry.
     pub fn get(&self) -> &Value {
-        self.entry.get().as_value().unwrap()
+        self.entry.get().value.as_value().unwrap()
     }
 
     /// Gets a mutable reference to the value in the entry.
     pub fn get_mut(&mut self) -> &mut Value {
-        self.entry.get_mut().as_value_mut().unwrap()
+        self.entry.get_mut().value.as_value_mut().unwrap()
     }
 
-    /// Converts the `OccupiedEntry` into a mutable reference to the value in the entry
+    /// Converts the OccupiedEntry into a mutable reference to the value in the entry
     /// with a lifetime bound to the map itself
     pub fn into_mut(self) -> &'a mut Value {
-        self.entry.into_mut().as_value_mut().unwrap()
+        self.entry.into_mut().value.as_value_mut().unwrap()
     }
 
     /// Sets the value of the entry, and returns the entry's old value
     pub fn insert(&mut self, value: Value) -> Value {
-        let value = Item::Value(value);
-        self.entry.insert(value).into_value().unwrap()
+        let mut value = Item::Value(value);
+        std::mem::swap(&mut value, &mut self.entry.get_mut().value);
+        value.into_value().unwrap()
     }
 
     /// Takes the value out of the entry, and returns it
     pub fn remove(self) -> Value {
-        self.entry.shift_remove().into_value().unwrap()
+        self.entry.shift_remove().value.into_value().unwrap()
     }
 }
 
 /// A view into a single empty location in a `IndexMap`.
 pub struct InlineVacantEntry<'a> {
-    entry: indexmap::map::VacantEntry<'a, Key, Item>,
+    entry: indexmap::map::VacantEntry<'a, InternalString, TableKeyValue>,
+    key: Option<Key>,
 }
 
 impl<'a> InlineVacantEntry<'a> {
@@ -732,14 +661,19 @@ impl<'a> InlineVacantEntry<'a> {
     /// assert_eq!("foo", map.entry("foo").key());
     /// ```
     pub fn key(&self) -> &str {
-        self.entry.key().get()
+        self.entry.key().as_str()
     }
 
-    /// Sets the value of the entry with the `VacantEntry`'s key,
+    /// Sets the value of the entry with the VacantEntry's key,
     /// and returns a mutable reference to it
     pub fn insert(self, value: Value) -> &'a mut Value {
         let entry = self.entry;
+        let key = self.key.unwrap_or_else(|| Key::new(entry.key().as_str()));
         let value = Item::Value(value);
-        entry.insert(value).as_value_mut().unwrap()
+        entry
+            .insert(TableKeyValue::new(key, value))
+            .value
+            .as_value_mut()
+            .unwrap()
     }
 }

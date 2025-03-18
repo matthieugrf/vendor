@@ -1,6 +1,7 @@
-//! Parsers recognizing bytes streams
+//! parsers recognizing bytes streams
 
-pub mod complete;
+#[macro_use]
+mod macros;
 pub mod streaming;
-#[cfg(test)]
-mod tests;
+pub mod complete;
+

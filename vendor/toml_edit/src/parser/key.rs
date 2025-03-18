@@ -1,13 +1,13 @@
 use std::ops::RangeInclusive;
 
 use winnow::combinator::peek;
-use winnow::combinator::separated;
-use winnow::combinator::trace;
+use winnow::combinator::separated1;
 use winnow::token::any;
 use winnow::token::take_while;
+use winnow::trace::trace;
 
 use crate::key::Key;
-use crate::parser::error::CustomError;
+use crate::parser::errors::CustomError;
 use crate::parser::prelude::*;
 use crate::parser::strings::{basic_string, literal_string};
 use crate::parser::trivia::{from_utf8_unchecked, ws};
@@ -17,15 +17,14 @@ use crate::RawString;
 
 // key = simple-key / dotted-key
 // dotted-key = simple-key 1*( dot-sep simple-key )
-pub(crate) fn key(input: &mut Input<'_>) -> ModalResult<Vec<Key>> {
-    let mut key_path = trace(
+pub(crate) fn key(input: &mut Input<'_>) -> PResult<Vec<Key>> {
+    trace(
         "dotted-key",
-        separated(
-            1..,
+        separated1(
             (ws.span(), simple_key, ws.span()).map(|(pre, (raw, key), suffix)| {
                 Key::new(key)
                     .with_repr_unchecked(Repr::new_unchecked(raw))
-                    .with_dotted_decor(Decor::new(
+                    .with_decor(Decor::new(
                         RawString::with_span(pre),
                         RawString::with_span(suffix),
                     ))
@@ -39,36 +38,12 @@ pub(crate) fn key(input: &mut Input<'_>) -> ModalResult<Vec<Key>> {
             Ok::<_, CustomError>(k)
         }),
     )
-    .parse_next(input)?;
-
-    let mut leaf_decor = Decor::new("", "");
-    {
-        let first_dotted_decor = key_path
-            .first_mut()
-            .expect("always at least one key")
-            .dotted_decor_mut();
-        if let Some(prefix) = first_dotted_decor.prefix().cloned() {
-            leaf_decor.set_prefix(prefix);
-            first_dotted_decor.set_prefix("");
-        }
-    }
-    let last_key = &mut key_path.last_mut().expect("always at least one key");
-    {
-        let last_dotted_decor = last_key.dotted_decor_mut();
-        if let Some(suffix) = last_dotted_decor.suffix().cloned() {
-            leaf_decor.set_suffix(suffix);
-            last_dotted_decor.set_suffix("");
-        }
-    }
-
-    *last_key.leaf_decor_mut() = leaf_decor;
-
-    Ok(key_path)
+    .parse_next(input)
 }
 
 // simple-key = quoted-key / unquoted-key
 // quoted-key = basic-string / literal-string
-pub(crate) fn simple_key(input: &mut Input<'_>) -> ModalResult<(RawString, InternalString)> {
+pub(crate) fn simple_key(input: &mut Input<'_>) -> PResult<(RawString, InternalString)> {
     trace(
         "simple-key",
         dispatch! {peek(any);
@@ -87,7 +62,7 @@ pub(crate) fn simple_key(input: &mut Input<'_>) -> ModalResult<(RawString, Inter
 }
 
 // unquoted-key = 1*( ALPHA / DIGIT / %x2D / %x5F ) ; A-Z / a-z / 0-9 / - / _
-fn unquoted_key<'i>(input: &mut Input<'i>) -> ModalResult<&'i str> {
+fn unquoted_key<'i>(input: &mut Input<'i>) -> PResult<&'i str> {
     trace(
         "unquoted-key",
         take_while(1.., UNQUOTED_CHAR)
@@ -113,8 +88,6 @@ const UNQUOTED_CHAR: (
 const DOT_SEP: u8 = b'.';
 
 #[cfg(test)]
-#[cfg(feature = "parse")]
-#[cfg(feature = "display")]
 mod test {
     use super::*;
 
@@ -123,7 +96,7 @@ mod test {
         let cases = [
             ("a", "a"),
             (r#""hello\n ""#, "hello\n "),
-            (r"'hello\n '", "hello\\n "),
+            (r#"'hello\n '"#, "hello\\n "),
         ];
 
         for (input, expected) in cases {

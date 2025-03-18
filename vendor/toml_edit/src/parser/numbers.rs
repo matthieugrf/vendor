@@ -6,10 +6,11 @@ use winnow::combinator::opt;
 use winnow::combinator::peek;
 use winnow::combinator::preceded;
 use winnow::combinator::repeat;
-use winnow::combinator::trace;
+use winnow::combinator::rest;
 use winnow::token::one_of;
-use winnow::token::rest;
+use winnow::token::tag;
 use winnow::token::take;
+use winnow::trace::trace;
 
 use crate::parser::prelude::*;
 use crate::parser::trivia::from_utf8_unchecked;
@@ -18,16 +19,16 @@ use crate::parser::trivia::from_utf8_unchecked;
 
 // boolean = true / false
 #[allow(dead_code)] // directly define in `fn value`
-pub(crate) fn boolean(input: &mut Input<'_>) -> ModalResult<bool> {
+pub(crate) fn boolean(input: &mut Input<'_>) -> PResult<bool> {
     trace("boolean", alt((true_, false_))).parse_next(input)
 }
 
-pub(crate) fn true_(input: &mut Input<'_>) -> ModalResult<bool> {
+pub(crate) fn true_(input: &mut Input<'_>) -> PResult<bool> {
     (peek(TRUE[0]), cut_err(TRUE)).value(true).parse_next(input)
 }
 const TRUE: &[u8] = b"true";
 
-pub(crate) fn false_(input: &mut Input<'_>) -> ModalResult<bool> {
+pub(crate) fn false_(input: &mut Input<'_>) -> PResult<bool> {
     (peek(FALSE[0]), cut_err(FALSE))
         .value(false)
         .parse_next(input)
@@ -37,7 +38,7 @@ const FALSE: &[u8] = b"false";
 // ;; Integer
 
 // integer = dec-int / hex-int / oct-int / bin-int
-pub(crate) fn integer(input: &mut Input<'_>) -> ModalResult<i64> {
+pub(crate) fn integer(input: &mut Input<'_>) -> PResult<i64> {
     trace("integer",
     dispatch! {peek(opt::<_, &[u8], _, _>(take(2usize)));
         Some(b"0x") => cut_err(hex_int.try_map(|s| i64::from_str_radix(&s.replace('_', ""), 16))),
@@ -51,7 +52,7 @@ pub(crate) fn integer(input: &mut Input<'_>) -> ModalResult<i64> {
 
 // dec-int = [ minus / plus ] unsigned-dec-int
 // unsigned-dec-int = DIGIT / digit1-9 1*( DIGIT / underscore DIGIT )
-pub(crate) fn dec_int<'i>(input: &mut Input<'i>) -> ModalResult<&'i str> {
+pub(crate) fn dec_int<'i>(input: &mut Input<'i>) -> PResult<&'i str> {
     trace(
         "dec-int",
         (
@@ -62,23 +63,23 @@ pub(crate) fn dec_int<'i>(input: &mut Input<'i>) -> ModalResult<&'i str> {
                     repeat(
                         0..,
                         alt((
-                            digit.void(),
+                            digit.value(()),
                             (
                                 one_of(b'_'),
                                 cut_err(digit).context(StrContext::Expected(
                                     StrContextValue::Description("digit"),
                                 )),
                             )
-                                .void(),
+                                .value(()),
                         )),
                     )
                     .map(|()| ()),
                 )
-                    .void(),
-                digit.void(),
+                    .value(()),
+                digit.value(()),
             )),
         )
-            .take()
+            .recognize()
             .map(|b: &[u8]| unsafe {
                 from_utf8_unchecked(b, "`digit` and `_` filter out non-ASCII")
             })
@@ -90,7 +91,7 @@ const DIGIT1_9: RangeInclusive<u8> = b'1'..=b'9';
 
 // hex-prefix = %x30.78               ; 0x
 // hex-int = hex-prefix HEXDIG *( HEXDIG / underscore HEXDIG )
-pub(crate) fn hex_int<'i>(input: &mut Input<'i>) -> ModalResult<&'i str> {
+pub(crate) fn hex_int<'i>(input: &mut Input<'i>) -> PResult<&'i str> {
     trace(
         "hex-int",
         preceded(
@@ -100,19 +101,19 @@ pub(crate) fn hex_int<'i>(input: &mut Input<'i>) -> ModalResult<&'i str> {
                 repeat(
                     0..,
                     alt((
-                        hexdig.void(),
+                        hexdig.value(()),
                         (
                             one_of(b'_'),
                             cut_err(hexdig).context(StrContext::Expected(
                                 StrContextValue::Description("digit"),
                             )),
                         )
-                            .void(),
+                            .value(()),
                     )),
                 )
                 .map(|()| ()),
             ))
-            .take(),
+            .recognize(),
         )
         .map(|b| unsafe { from_utf8_unchecked(b, "`hexdig` and `_` filter out non-ASCII") })
         .context(StrContext::Label("hexadecimal integer")),
@@ -123,7 +124,7 @@ const HEX_PREFIX: &[u8] = b"0x";
 
 // oct-prefix = %x30.6F               ; 0o
 // oct-int = oct-prefix digit0-7 *( digit0-7 / underscore digit0-7 )
-pub(crate) fn oct_int<'i>(input: &mut Input<'i>) -> ModalResult<&'i str> {
+pub(crate) fn oct_int<'i>(input: &mut Input<'i>) -> PResult<&'i str> {
     trace(
         "oct-int",
         preceded(
@@ -133,19 +134,19 @@ pub(crate) fn oct_int<'i>(input: &mut Input<'i>) -> ModalResult<&'i str> {
                 repeat(
                     0..,
                     alt((
-                        one_of(DIGIT0_7).void(),
+                        one_of(DIGIT0_7).value(()),
                         (
                             one_of(b'_'),
                             cut_err(one_of(DIGIT0_7)).context(StrContext::Expected(
                                 StrContextValue::Description("digit"),
                             )),
                         )
-                            .void(),
+                            .value(()),
                     )),
                 )
                 .map(|()| ()),
             ))
-            .take(),
+            .recognize(),
         )
         .map(|b| unsafe { from_utf8_unchecked(b, "`DIGIT0_7` and `_` filter out non-ASCII") })
         .context(StrContext::Label("octal integer")),
@@ -157,7 +158,7 @@ const DIGIT0_7: RangeInclusive<u8> = b'0'..=b'7';
 
 // bin-prefix = %x30.62               ; 0b
 // bin-int = bin-prefix digit0-1 *( digit0-1 / underscore digit0-1 )
-pub(crate) fn bin_int<'i>(input: &mut Input<'i>) -> ModalResult<&'i str> {
+pub(crate) fn bin_int<'i>(input: &mut Input<'i>) -> PResult<&'i str> {
     trace(
         "bin-int",
         preceded(
@@ -167,19 +168,19 @@ pub(crate) fn bin_int<'i>(input: &mut Input<'i>) -> ModalResult<&'i str> {
                 repeat(
                     0..,
                     alt((
-                        one_of(DIGIT0_1).void(),
+                        one_of(DIGIT0_1).value(()),
                         (
                             one_of(b'_'),
                             cut_err(one_of(DIGIT0_1)).context(StrContext::Expected(
                                 StrContextValue::Description("digit"),
                             )),
                         )
-                            .void(),
+                            .value(()),
                     )),
                 )
                 .map(|()| ()),
             ))
-            .take(),
+            .recognize(),
         )
         .map(|b| unsafe { from_utf8_unchecked(b, "`DIGIT0_1` and `_` filter out non-ASCII") })
         .context(StrContext::Label("binary integer")),
@@ -194,7 +195,7 @@ const DIGIT0_1: RangeInclusive<u8> = b'0'..=b'1';
 // float = float-int-part ( exp / frac [ exp ] )
 // float =/ special-float
 // float-int-part = dec-int
-pub(crate) fn float(input: &mut Input<'_>) -> ModalResult<f64> {
+pub(crate) fn float(input: &mut Input<'_>) -> PResult<f64> {
     trace(
         "float",
         alt((
@@ -209,12 +210,12 @@ pub(crate) fn float(input: &mut Input<'_>) -> ModalResult<f64> {
     .parse_next(input)
 }
 
-pub(crate) fn float_<'i>(input: &mut Input<'i>) -> ModalResult<&'i str> {
+pub(crate) fn float_<'i>(input: &mut Input<'i>) -> PResult<&'i str> {
     (
         dec_int,
         alt((exp.void(), (frac.void(), opt(exp.void())).void())),
     )
-        .take()
+        .recognize()
         .map(|b: &[u8]| unsafe {
             from_utf8_unchecked(
                 b,
@@ -226,13 +227,13 @@ pub(crate) fn float_<'i>(input: &mut Input<'i>) -> ModalResult<&'i str> {
 
 // frac = decimal-point zero-prefixable-int
 // decimal-point = %x2E               ; .
-pub(crate) fn frac<'i>(input: &mut Input<'i>) -> ModalResult<&'i str> {
+pub(crate) fn frac<'i>(input: &mut Input<'i>) -> PResult<&'i str> {
     (
         b'.',
         cut_err(zero_prefixable_int)
             .context(StrContext::Expected(StrContextValue::Description("digit"))),
     )
-        .take()
+        .recognize()
         .map(|b: &[u8]| unsafe {
             from_utf8_unchecked(
                 b,
@@ -243,37 +244,37 @@ pub(crate) fn frac<'i>(input: &mut Input<'i>) -> ModalResult<&'i str> {
 }
 
 // zero-prefixable-int = DIGIT *( DIGIT / underscore DIGIT )
-pub(crate) fn zero_prefixable_int<'i>(input: &mut Input<'i>) -> ModalResult<&'i str> {
+pub(crate) fn zero_prefixable_int<'i>(input: &mut Input<'i>) -> PResult<&'i str> {
     (
         digit,
         repeat(
             0..,
             alt((
-                digit.void(),
+                digit.value(()),
                 (
                     one_of(b'_'),
                     cut_err(digit)
                         .context(StrContext::Expected(StrContextValue::Description("digit"))),
                 )
-                    .void(),
+                    .value(()),
             )),
         )
         .map(|()| ()),
     )
-        .take()
+        .recognize()
         .map(|b: &[u8]| unsafe { from_utf8_unchecked(b, "`digit` and `_` filter out non-ASCII") })
         .parse_next(input)
 }
 
 // exp = "e" float-exp-part
 // float-exp-part = [ minus / plus ] zero-prefixable-int
-pub(crate) fn exp<'i>(input: &mut Input<'i>) -> ModalResult<&'i str> {
+pub(crate) fn exp<'i>(input: &mut Input<'i>) -> PResult<&'i str> {
     (
         one_of((b'e', b'E')),
         opt(one_of([b'+', b'-'])),
         cut_err(zero_prefixable_int),
     )
-        .take()
+        .recognize()
         .map(|b: &[u8]| unsafe {
             from_utf8_unchecked(
                 b,
@@ -284,7 +285,7 @@ pub(crate) fn exp<'i>(input: &mut Input<'i>) -> ModalResult<&'i str> {
 }
 
 // special-float = [ minus / plus ] ( inf / nan )
-pub(crate) fn special_float(input: &mut Input<'_>) -> ModalResult<f64> {
+pub(crate) fn special_float(input: &mut Input<'_>) -> PResult<f64> {
     (opt(one_of((b'+', b'-'))), alt((inf, nan)))
         .map(|(s, f)| match s {
             Some(b'+') | None => f,
@@ -294,32 +295,30 @@ pub(crate) fn special_float(input: &mut Input<'_>) -> ModalResult<f64> {
         .parse_next(input)
 }
 // inf = %x69.6e.66  ; inf
-pub(crate) fn inf(input: &mut Input<'_>) -> ModalResult<f64> {
-    INF.value(f64::INFINITY).parse_next(input)
+pub(crate) fn inf(input: &mut Input<'_>) -> PResult<f64> {
+    tag(INF).value(f64::INFINITY).parse_next(input)
 }
 const INF: &[u8] = b"inf";
 // nan = %x6e.61.6e  ; nan
-pub(crate) fn nan(input: &mut Input<'_>) -> ModalResult<f64> {
-    NAN.value(f64::NAN.copysign(1.0)).parse_next(input)
+pub(crate) fn nan(input: &mut Input<'_>) -> PResult<f64> {
+    tag(NAN).value(f64::NAN).parse_next(input)
 }
 const NAN: &[u8] = b"nan";
 
 // DIGIT = %x30-39 ; 0-9
-pub(crate) fn digit(input: &mut Input<'_>) -> ModalResult<u8> {
+pub(crate) fn digit(input: &mut Input<'_>) -> PResult<u8> {
     one_of(DIGIT).parse_next(input)
 }
 const DIGIT: RangeInclusive<u8> = b'0'..=b'9';
 
 // HEXDIG = DIGIT / "A" / "B" / "C" / "D" / "E" / "F"
-pub(crate) fn hexdig(input: &mut Input<'_>) -> ModalResult<u8> {
+pub(crate) fn hexdig(input: &mut Input<'_>) -> PResult<u8> {
     one_of(HEXDIG).parse_next(input)
 }
 pub(crate) const HEXDIG: (RangeInclusive<u8>, RangeInclusive<u8>, RangeInclusive<u8>) =
     (DIGIT, b'A'..=b'F', b'a'..=b'f');
 
 #[cfg(test)]
-#[cfg(feature = "parse")]
-#[cfg(feature = "display")]
 mod test {
     use super::*;
 
@@ -336,8 +335,8 @@ mod test {
             ("0xF", 15),
             ("0o0_755", 493),
             ("0b1_0_1", 5),
-            (&i64::MIN.to_string()[..], i64::MIN),
-            (&i64::MAX.to_string()[..], i64::MAX),
+            (&std::i64::MIN.to_string()[..], std::i64::MIN),
+            (&std::i64::MAX.to_string()[..], std::i64::MAX),
         ];
         for &(input, expected) in &cases {
             dbg!(input);
@@ -354,14 +353,13 @@ mod test {
     fn assert_float_eq(actual: f64, expected: f64) {
         if expected.is_nan() {
             assert!(actual.is_nan());
-            assert_eq!(expected.is_sign_positive(), actual.is_sign_positive());
         } else if expected.is_infinite() {
             assert!(actual.is_infinite());
             assert_eq!(expected.is_sign_positive(), actual.is_sign_positive());
         } else {
             dbg!(expected);
             dbg!(actual);
-            assert!((expected - actual).abs() < f64::EPSILON);
+            assert!((expected - actual).abs() < std::f64::EPSILON);
         }
     }
 
@@ -376,15 +374,15 @@ mod test {
             ("-2E-2", -2E-2),
             ("6.626e-34", 6.626e-34),
             ("9_224_617.445_991_228_313", 9_224_617.445_991_227),
-            ("-1.7976931348623157e+308", f64::MIN),
-            ("1.7976931348623157e+308", f64::MAX),
-            ("nan", f64::NAN.copysign(1.0)),
-            ("+nan", f64::NAN.copysign(1.0)),
-            ("-nan", f64::NAN.copysign(-1.0)),
+            ("-1.7976931348623157e+308", std::f64::MIN),
+            ("1.7976931348623157e+308", std::f64::MAX),
+            ("nan", f64::NAN),
+            ("+nan", f64::NAN),
+            ("-nan", f64::NAN),
             ("inf", f64::INFINITY),
             ("+inf", f64::INFINITY),
             ("-inf", f64::NEG_INFINITY),
-            // ("1e+400", f64::INFINITY),
+            // ("1e+400", std::f64::INFINITY),
         ];
         for &(input, expected) in &cases {
             dbg!(input);
@@ -393,7 +391,7 @@ mod test {
 
             let overflow = "9e99999";
             let parsed = float.parse(new_input(overflow));
-            assert!(parsed.is_err(), "{parsed:?}");
+            assert!(parsed.is_err(), "{:?}", parsed);
         }
     }
 }

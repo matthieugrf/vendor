@@ -1,16 +1,15 @@
 use std::str::FromStr;
 
-use toml_datetime::Datetime;
+use toml_datetime::*;
 
 use crate::array_of_tables::ArrayOfTables;
 use crate::table::TableLike;
 use crate::{Array, InlineTable, Table, Value};
 
 /// Type representing either a value, a table, an array of tables, or none.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub enum Item {
     /// Type representing none.
-    #[default]
     None,
     /// Type representing value.
     Value(Value),
@@ -21,11 +20,11 @@ pub enum Item {
 }
 
 impl Item {
-    /// Sets `self` to the given item if `self` is none and
+    /// Sets `self` to the given item iff `self` is none and
     /// returns a mutable reference to `self`.
     pub fn or_insert(&mut self, item: Item) -> &mut Item {
         if self.is_none() {
-            *self = item;
+            *self = item
         }
         self
     }
@@ -167,29 +166,29 @@ impl Item {
     // Starting private because the name is unclear
     pub(crate) fn make_item(&mut self) {
         let other = std::mem::take(self);
-        let other = match other.into_table().map(Item::Table) {
+        let other = match other.into_table().map(crate::Item::Table) {
             Ok(i) => i,
             Err(i) => i,
         };
-        let other = match other.into_array_of_tables().map(Item::ArrayOfTables) {
+        let other = match other.into_array_of_tables().map(crate::Item::ArrayOfTables) {
             Ok(i) => i,
             Err(i) => i,
         };
         *self = other;
     }
-    /// Returns true if `self` is a value.
+    /// Returns true iff `self` is a value.
     pub fn is_value(&self) -> bool {
         self.as_value().is_some()
     }
-    /// Returns true if `self` is a table.
+    /// Returns true iff `self` is a table.
     pub fn is_table(&self) -> bool {
         self.as_table().is_some()
     }
-    /// Returns true if `self` is an array of tables.
+    /// Returns true iff `self` is an array of tables.
     pub fn is_array_of_tables(&self) -> bool {
         self.as_array_of_tables().is_some()
     }
-    /// Returns true if `self` is `None`.
+    /// Returns true iff `self` is `None`.
     pub fn is_none(&self) -> bool {
         matches!(*self, Item::None)
     }
@@ -201,7 +200,7 @@ impl Item {
         self.as_value().and_then(Value::as_integer)
     }
 
-    /// Returns true if `self` is an integer.
+    /// Returns true iff `self` is an integer.
     pub fn is_integer(&self) -> bool {
         self.as_integer().is_some()
     }
@@ -211,7 +210,7 @@ impl Item {
         self.as_value().and_then(Value::as_float)
     }
 
-    /// Returns true if `self` is a float.
+    /// Returns true iff `self` is a float.
     pub fn is_float(&self) -> bool {
         self.as_float().is_some()
     }
@@ -221,7 +220,7 @@ impl Item {
         self.as_value().and_then(Value::as_bool)
     }
 
-    /// Returns true if `self` is a boolean.
+    /// Returns true iff `self` is a boolean.
     pub fn is_bool(&self) -> bool {
         self.as_bool().is_some()
     }
@@ -231,7 +230,7 @@ impl Item {
         self.as_value().and_then(Value::as_str)
     }
 
-    /// Returns true if `self` is a string.
+    /// Returns true iff `self` is a string.
     pub fn is_str(&self) -> bool {
         self.as_str().is_some()
     }
@@ -241,7 +240,7 @@ impl Item {
         self.as_value().and_then(Value::as_datetime)
     }
 
-    /// Returns true if `self` is a date-time.
+    /// Returns true iff `self` is a date-time.
     pub fn is_datetime(&self) -> bool {
         self.as_datetime().is_some()
     }
@@ -256,7 +255,7 @@ impl Item {
         self.as_value_mut().and_then(Value::as_array_mut)
     }
 
-    /// Returns true if `self` is an array.
+    /// Returns true iff `self` is an array.
     pub fn is_array(&self) -> bool {
         self.as_array().is_some()
     }
@@ -271,7 +270,7 @@ impl Item {
         self.as_value_mut().and_then(Value::as_inline_table_mut)
     }
 
-    /// Returns true if `self` is an inline table.
+    /// Returns true iff `self` is an inline table.
     pub fn is_inline_table(&self) -> bool {
         self.as_inline_table().is_some()
     }
@@ -292,15 +291,13 @@ impl Item {
         }
     }
 
-    /// Returns true if `self` is either a table, or an inline table.
+    /// Returns true iff `self` is either a table, or an inline table.
     pub fn is_table_like(&self) -> bool {
         self.as_table_like().is_some()
     }
 
-    /// The location within the original document
-    ///
-    /// This generally requires an [`ImDocument`][crate::ImDocument].
-    pub fn span(&self) -> Option<std::ops::Range<usize>> {
+    /// Returns the location within the original document
+    pub(crate) fn span(&self) -> Option<std::ops::Range<usize>> {
         match self {
             Item::None => None,
             Item::Value(v) => v.span(),
@@ -331,7 +328,12 @@ impl Clone for Item {
     }
 }
 
-#[cfg(feature = "parse")]
+impl Default for Item {
+    fn default() -> Self {
+        Item::None
+    }
+}
+
 impl FromStr for Item {
     type Err = crate::TomlError;
 
@@ -342,31 +344,6 @@ impl FromStr for Item {
     }
 }
 
-impl<'b> From<&'b Item> for Item {
-    fn from(s: &'b Item) -> Self {
-        s.clone()
-    }
-}
-
-impl From<Table> for Item {
-    fn from(s: Table) -> Self {
-        Item::Table(s)
-    }
-}
-
-impl From<ArrayOfTables> for Item {
-    fn from(s: ArrayOfTables) -> Self {
-        Item::ArrayOfTables(s)
-    }
-}
-
-impl<V: Into<Value>> From<V> for Item {
-    fn from(s: V) -> Self {
-        Item::Value(s.into())
-    }
-}
-
-#[cfg(feature = "display")]
 impl std::fmt::Display for Item {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self {
@@ -386,8 +363,7 @@ impl std::fmt::Display for Item {
 ///
 /// # Examples
 /// ```rust
-/// # #[cfg(feature = "display")] {
-/// # #[cfg(feature = "parse")] {
+/// # use snapbox::assert_eq;
 /// # use toml_edit::*;
 /// let mut table = Table::default();
 /// let mut array = Array::default();
@@ -396,13 +372,11 @@ impl std::fmt::Display for Item {
 /// table["key1"] = value("value1");
 /// table["key2"] = value(42);
 /// table["key3"] = value(array);
-/// assert_eq!(table.to_string(),
+/// assert_eq(table.to_string(),
 /// r#"key1 = "value1"
 /// key2 = 42
 /// key3 = ["hello", '\, world']
 /// "#);
-/// # }
-/// # }
 /// ```
 pub fn value<V: Into<Value>>(v: V) -> Item {
     Item::Value(v.into())
@@ -416,11 +390,4 @@ pub fn table() -> Item {
 /// Returns an empty array of tables.
 pub fn array() -> Item {
     Item::ArrayOfTables(ArrayOfTables::new())
-}
-
-#[test]
-#[cfg(feature = "parse")]
-#[cfg(feature = "display")]
-fn string_roundtrip() {
-    value("hello").to_string().parse::<Item>().unwrap();
 }

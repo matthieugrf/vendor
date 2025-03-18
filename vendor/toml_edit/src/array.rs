@@ -87,10 +87,8 @@ impl Array {
         &self.decor
     }
 
-    /// The location within the original document
-    ///
-    /// This generally requires an [`ImDocument`][crate::ImDocument].
-    pub fn span(&self) -> Option<std::ops::Range<usize>> {
+    /// Returns the location within the original document
+    pub(crate) fn span(&self) -> Option<std::ops::Range<usize>> {
         self.span.clone()
     }
 
@@ -132,7 +130,7 @@ impl Array {
         self.values.len()
     }
 
-    /// Return true if `self.len() == 0`.
+    /// Return true iff `self.len() == 0`.
     ///
     /// # Examples
     ///
@@ -150,7 +148,7 @@ impl Array {
 
     /// Clears the array, removing all values. Keeps the allocated memory for reuse.
     pub fn clear(&mut self) {
-        self.values.clear();
+        self.values.clear()
     }
 
     /// Returns a reference to the value at the given index, or `None` if the index is out of
@@ -176,8 +174,8 @@ impl Array {
     /// ```
     pub fn push<V: Into<Value>>(&mut self, v: V) {
         self.value_op(v.into(), true, |items, value| {
-            items.push(Item::Value(value));
-        });
+            items.push(Item::Value(value))
+        })
     }
 
     /// Appends a new, already formatted value to the end of the array.
@@ -185,11 +183,9 @@ impl Array {
     /// # Examples
     ///
     /// ```rust
-    /// # #[cfg(feature = "parse")] {
     /// let formatted_value = "'literal'".parse::<toml_edit::Value>().unwrap();
     /// let mut arr = toml_edit::Array::new();
     /// arr.push_formatted(formatted_value);
-    /// # }
     /// ```
     pub fn push_formatted(&mut self, v: Value) {
         self.values.push(Item::Value(v));
@@ -213,8 +209,8 @@ impl Array {
     /// ```
     pub fn insert<V: Into<Value>>(&mut self, index: usize, v: V) {
         self.value_op(v.into(), true, |items, value| {
-            items.insert(index, Item::Value(value));
-        });
+            items.insert(index, Item::Value(value))
+        })
     }
 
     /// Inserts an already formatted value at the given position within the array, shifting all
@@ -227,17 +223,15 @@ impl Array {
     /// # Examples
     ///
     /// ```rust
-    /// # #[cfg(feature = "parse")] {
     /// let mut arr = toml_edit::Array::new();
     /// arr.push(1);
     /// arr.push("foo");
     ///
     /// let formatted_value = "'start'".parse::<toml_edit::Value>().unwrap();
     /// arr.insert_formatted(0, formatted_value);
-    /// # }
     /// ```
     pub fn insert_formatted(&mut self, index: usize, v: Value) {
-        self.values.insert(index, Item::Value(v));
+        self.values.insert(index, Item::Value(v))
     }
 
     /// Replaces the element at the given position within the array, preserving existing formatting.
@@ -275,19 +269,17 @@ impl Array {
     /// # Examples
     ///
     /// ```rust
-    /// # #[cfg(feature = "parse")] {
     /// let mut arr = toml_edit::Array::new();
     /// arr.push(1);
     /// arr.push("foo");
     ///
     /// let formatted_value = "'start'".parse::<toml_edit::Value>().unwrap();
     /// arr.replace_formatted(0, formatted_value);
-    /// # }
     /// ```
     pub fn replace_formatted(&mut self, index: usize, v: Value) -> Value {
         match mem::replace(&mut self.values[index], Item::Value(v)) {
             Item::Value(old_value) => old_value,
-            x => panic!("non-value item {x:?} in an array"),
+            x => panic!("non-value item {:?} in an array", x),
         }
     }
 
@@ -307,7 +299,7 @@ impl Array {
         let removed = self.values.remove(index);
         match removed {
             Item::Value(v) => v,
-            x => panic!("non-value item {x:?} in an array"),
+            x => panic!("non-value item {:?} in an array", x),
         }
     }
 
@@ -323,56 +315,6 @@ impl Array {
     {
         self.values
             .retain(|item| item.as_value().map(&mut keep).unwrap_or(false));
-    }
-
-    /// Sorts the slice with a comparator function.
-    ///
-    /// This sort is stable (i.e., does not reorder equal elements) and *O*(*n* \* log(*n*)) worst-case.
-    ///
-    /// The comparator function must define a total ordering for the elements in the slice. If
-    /// the ordering is not total, the order of the elements is unspecified. An order is a
-    /// total order if it is (for all `a`, `b` and `c`):
-    ///
-    /// * total and antisymmetric: exactly one of `a < b`, `a == b` or `a > b` is true, and
-    /// * transitive, `a < b` and `b < c` implies `a < c`. The same must hold for both `==` and `>`.
-    ///
-    /// For example, while [`f64`] doesn't implement [`Ord`] because `NaN != NaN`, we can use
-    /// `partial_cmp` as our sort function when we know the slice doesn't contain a `NaN`.
-    #[inline]
-    pub fn sort_by<F>(&mut self, mut compare: F)
-    where
-        F: FnMut(&Value, &Value) -> std::cmp::Ordering,
-    {
-        self.values.sort_by(move |lhs, rhs| {
-            let lhs = lhs.as_value();
-            let rhs = rhs.as_value();
-            match (lhs, rhs) {
-                (None, None) => std::cmp::Ordering::Equal,
-                (Some(_), None) => std::cmp::Ordering::Greater,
-                (None, Some(_)) => std::cmp::Ordering::Less,
-                (Some(lhs), Some(rhs)) => compare(lhs, rhs),
-            }
-        });
-    }
-
-    /// Sorts the array with a key extraction function.
-    ///
-    /// This sort is stable (i.e., does not reorder equal elements) and *O*(*m* \* *n* \* log(*n*))
-    /// worst-case, where the key function is *O*(*m*).
-    #[inline]
-    pub fn sort_by_key<K, F>(&mut self, mut f: F)
-    where
-        F: FnMut(&Value) -> K,
-        K: Ord,
-    {
-        #[allow(clippy::manual_map)] // needed for lifetimes
-        self.values.sort_by_key(move |item| {
-            if let Some(value) = item.as_value() {
-                Some(f(value))
-            } else {
-                None
-            }
-        });
     }
 
     fn value_op<T>(
@@ -391,10 +333,9 @@ impl Array {
     }
 }
 
-#[cfg(feature = "display")]
 impl std::fmt::Display for Array {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        crate::encode::encode_array(self, f, None, ("", ""))
+        crate::encode::Encode::encode(self, f, None, ("", ""))
     }
 }
 

@@ -13,8 +13,6 @@ use super::Error;
 /// # Examples
 ///
 /// ```
-/// # #[cfg(feature = "parse")] {
-/// # #[cfg(feature = "display")] {
 /// use serde::Serialize;
 ///
 /// #[derive(Serialize)]
@@ -44,8 +42,6 @@ use super::Error;
 ///     toml_edit::ser::ValueSerializer::new()
 /// ).unwrap();
 /// println!("{}", value)
-/// # }
-/// # }
 /// ```
 #[derive(Default)]
 #[non_exhaustive]
@@ -64,10 +60,10 @@ impl serde::ser::Serializer for ValueSerializer {
     type SerializeSeq = super::SerializeValueArray;
     type SerializeTuple = super::SerializeValueArray;
     type SerializeTupleStruct = super::SerializeValueArray;
-    type SerializeTupleVariant = super::SerializeTupleVariant;
+    type SerializeTupleVariant = super::SerializeValueArray;
     type SerializeMap = super::SerializeMap;
     type SerializeStruct = super::SerializeMap;
-    type SerializeStructVariant = super::SerializeStructVariant;
+    type SerializeStructVariant = serde::ser::Impossible<Self::Ok, Self::Error>;
 
     fn serialize_bool(self, v: bool) -> Result<Self::Ok, Self::Error> {
         Ok(v.into())
@@ -112,17 +108,7 @@ impl serde::ser::Serializer for ValueSerializer {
         self.serialize_f64(v as f64)
     }
 
-    fn serialize_f64(self, mut v: f64) -> Result<Self::Ok, Self::Error> {
-        // Discard sign of NaN when serialized using Serde.
-        //
-        // In all likelihood the sign of NaNs is not meaningful in the user's
-        // program. Ending up with `-nan` in the TOML document would usually be
-        // surprising and undesirable, when the sign of the NaN was not
-        // intentionally controlled by the caller, or may even be
-        // nondeterministic if it comes from arithmetic operations or a cast.
-        if v.is_nan() {
-            v = v.copysign(1.0);
-        }
+    fn serialize_f64(self, v: f64) -> Result<Self::Ok, Self::Error> {
         Ok(v.into())
     }
 
@@ -144,9 +130,9 @@ impl serde::ser::Serializer for ValueSerializer {
         Err(Error::UnsupportedNone)
     }
 
-    fn serialize_some<T>(self, value: &T) -> Result<Self::Ok, Self::Error>
+    fn serialize_some<T: ?Sized>(self, value: &T) -> Result<Self::Ok, Self::Error>
     where
-        T: serde::ser::Serialize + ?Sized,
+        T: serde::ser::Serialize,
     {
         value.serialize(self)
     }
@@ -168,18 +154,18 @@ impl serde::ser::Serializer for ValueSerializer {
         self.serialize_str(variant)
     }
 
-    fn serialize_newtype_struct<T>(
+    fn serialize_newtype_struct<T: ?Sized>(
         self,
         _name: &'static str,
         value: &T,
     ) -> Result<Self::Ok, Self::Error>
     where
-        T: serde::ser::Serialize + ?Sized,
+        T: serde::ser::Serialize,
     {
         value.serialize(self)
     }
 
-    fn serialize_newtype_variant<T>(
+    fn serialize_newtype_variant<T: ?Sized>(
         self,
         _name: &'static str,
         _variant_index: u32,
@@ -187,7 +173,7 @@ impl serde::ser::Serializer for ValueSerializer {
         value: &T,
     ) -> Result<Self::Ok, Self::Error>
     where
-        T: serde::ser::Serialize + ?Sized,
+        T: serde::ser::Serialize,
     {
         let value = value.serialize(self)?;
         let mut table = crate::InlineTable::new();
@@ -219,10 +205,10 @@ impl serde::ser::Serializer for ValueSerializer {
         self,
         _name: &'static str,
         _variant_index: u32,
-        variant: &'static str,
+        _variant: &'static str,
         len: usize,
     ) -> Result<Self::SerializeTupleVariant, Self::Error> {
-        Ok(super::SerializeTupleVariant::tuple(variant, len))
+        self.serialize_seq(Some(len))
     }
 
     fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
@@ -247,11 +233,11 @@ impl serde::ser::Serializer for ValueSerializer {
 
     fn serialize_struct_variant(
         self,
-        _name: &'static str,
+        name: &'static str,
         _variant_index: u32,
-        variant: &'static str,
-        len: usize,
+        _variant: &'static str,
+        _len: usize,
     ) -> Result<Self::SerializeStructVariant, Self::Error> {
-        Ok(super::SerializeStructVariant::struct_(variant, len))
+        Err(Error::UnsupportedType(Some(name)))
     }
 }

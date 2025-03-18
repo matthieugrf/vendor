@@ -1,0 +1,603 @@
+[options]
+girs_directories = ["../gir-files", "../gst-gir-files"]
+library = "GstVideo"
+version = "1.0"
+min_cfg_version = "1.8"
+work_mode = "normal"
+concurrency = "send+sync"
+generate_safety_asserts = true
+single_version_file = true
+generate_display_trait = false
+
+external_libraries = [
+    "GLib",
+    "GObject",
+    "Gst",
+    "GstBase",
+]
+
+generate = [
+    "GstVideo.VideoAFDSpec",
+    "GstVideo.VideoAFDValue",
+    "GstVideo.VideoAggregatorParallelConvertPad",
+    "GstVideo.VideoAlphaMode",
+    "GstVideo.VideoBufferPool",
+    "GstVideo.VideoCaptionType",
+    "GstVideo.VideoChromaMode",
+    "GstVideo.VideoCodecFrameFlags",
+    "GstVideo.VideoDecoderRequestSyncPointFlags",
+    "GstVideo.VideoDitherMethod",
+    "GstVideo.VideoFilter",
+    "GstVideo.VideoFormatFlags",
+    "GstVideo.VideoGammaMode",
+    "GstVideo.VideoMatrixMode",
+    "GstVideo.VideoMultiviewFramePacking",
+    "GstVideo.VideoMultiviewMode",
+    "GstVideo.VideoOrientationMethod",
+    "GstVideo.VideoPrimariesMode",
+    "GstVideo.VideoResamplerMethod",
+    "GstVideo.VideoTileMode",
+]
+
+manual = [
+    "GLib.DateTime",
+    "GObject.Object",
+    "GObject.Value",
+    "Gst.AllocationParams",
+    "Gst.Allocator",
+    "Gst.Buffer",
+    "Gst.BufferPool",
+    "Gst.BufferPoolAcquireParams",
+    "Gst.ClockTimeDiff",
+    "Gst.Element",
+    "Gst.FlowReturn",
+    "Gst.Format",
+    "Gst.Memory",
+    "Gst.Message",
+    "Gst.Object",
+    "Gst.Pipeline",
+    "Gst.State",
+    "Gst.TagList",
+    "Gst.TagMergeMode",
+    "GstBase.BaseSink",
+    "GstBase.BaseTransform",
+    "GstVideo.VideoCodecFrame",
+    "GstVideo.VideoCodecState",
+    "GstVideo.VideoColorRange",
+    "GstVideo.VideoColorimetry",
+    "GstVideo.VideoFormatInfo",
+    "GstVideo.VideoInfo",
+    "GstVideo.VideoMeta",
+    "GstVideo.VideoTimeCode",
+    "GstVideo.VideoTimeCodeInterval",
+]
+
+[[object]]
+name = "Gst.ClockTime"
+status = "manual"
+conversion_type = "Option"
+
+[[object]]
+name = "Gst.Caps"
+status = "manual"
+ref_mode = "ref"
+
+[[object]]
+name = "GstVideo.VideoFrame"
+status = "manual"
+
+    [[object.function]]
+    name = "map"
+    # Readable and writable variant dealing with mutability
+    rename = "from_buffer_readable"
+
+[[object]]
+name = "GstVideo.VideoOrientation"
+status = "generate"
+    [[object.function]]
+    name = "set_hcenter"
+        [object.function.return]
+        bool_return_is_error = "Failed to set horizontal centering"
+    [[object.function]]
+    name = "set_hflip"
+        [object.function.return]
+        bool_return_is_error = "Failed to set horizontal flipping"
+    [[object.function]]
+    name = "set_vcenter"
+        [object.function.return]
+        bool_return_is_error = "Failed to set vertical centering"
+    [[object.function]]
+    name = "set_vflip"
+        [object.function.return]
+        bool_return_is_error = "Failed to set vertical flipping"
+
+[[object]]
+name = "GstVideo.VideoOverlay"
+status = "generate"
+manual_traits = ["VideoOverlayExtManual"]
+
+    [[object.function]]
+    name = "set_property"
+    # Only for implementors of GstVideoOverlay
+    ignore = true
+
+    [[object.function]]
+    name = "set_window_handle"
+    # Pointer argument
+    manual = true
+
+    [[object.function]]
+    name = "set_render_rectangle"
+        [object.function.return]
+        bool_return_is_error = "Failed to set render rectangle"
+
+[[object]]
+name = "GstVideo.VideoDecoder"
+status = "generate"
+manual_traits = ["VideoDecoderExtManual"]
+
+    [[object.function]]
+    name = "allocate_output_frame"
+    manual = true
+
+    [[object.function]]
+    name = "allocate_output_frame_with_params"
+    ignore = true
+
+    [[object.function]]
+    name = "finish_frame"
+    manual = true
+
+    [[object.function]]
+    name = "release_frame"
+    manual = true
+
+    [[object.function]]
+    name = "drop_frame"
+    manual = true
+
+    [[object.function]]
+    name = "set_latency"
+    manual = true
+
+    [[object.function]]
+    name = "get_latency"
+    manual = true
+
+    [[object.function]]
+    name = "get_frame"
+    manual = true
+
+    [[object.function]]
+    name = "get_frames"
+    manual = true
+
+    [[object.function]]
+    name = "get_oldest_frame"
+    manual = true
+
+    [[object.function]]
+    name = "get_output_state"
+    manual = true
+
+    [[object.function]]
+    name = "set_output_state"
+    manual = true
+
+    [[object.function]]
+    name = "set_interlaced_output_state"
+    manual = true
+
+    [[object.function]]
+    name = "negotiate"
+    manual = true
+
+    [[object.function]]
+    name = "get_allocator"
+    manual = true
+
+    [[object.function]]
+    name = "proxy_getcaps"
+        [object.function.return]
+        nullable = false
+
+    [[object.function]]
+    name = "allocate_output_buffer"
+        [object.function.return]
+        nullable_return_is_error = "Failed to allocate output buffer"
+
+[[object]]
+name = "GstVideo.VideoEncoder"
+status = "generate"
+manual_traits = ["VideoEncoderExtManual"]
+
+    [[object.function]]
+    name = "allocate_output_frame"
+    manual = true
+
+    [[object.function]]
+    name = "allocate_output_frame_with_params"
+    ignore = true
+
+    [[object.function]]
+    name = "finish_frame"
+    manual = true
+
+    [[object.function]]
+    name = "finish_subframe"
+    manual = true
+
+    [[object.function]]
+    name = "set_latency"
+    manual = true
+
+    [[object.function]]
+    name = "get_latency"
+    manual = true
+
+    [[object.function]]
+    name = "get_frame"
+    manual = true
+
+    [[object.function]]
+    name = "get_frames"
+    manual = true
+
+    [[object.function]]
+    name = "get_oldest_frame"
+    manual = true
+
+    [[object.function]]
+    name = "get_output_state"
+    manual = true
+
+    [[object.function]]
+    name = "set_output_state"
+    manual = true
+
+    [[object.function]]
+    name = "negotiate"
+    manual = true
+
+    [[object.function]]
+    name = "get_allocator"
+    manual = true
+
+    [[object.function]]
+    name = "proxy_getcaps"
+        [object.function.return]
+        nullable = false
+
+    [[object.function]]
+    name = "allocate_output_buffer"
+        [object.function.return]
+        nullable_return_is_error = "Failed to allocate output buffer"
+
+[[object]]
+name = "GstVideo.VideoFormat"
+status = "generate"
+
+    [[object.derive]]
+    name = "Debug, Eq, PartialEq, Hash"
+
+    [[object.member]]
+    name = "p010_10be"
+    version = "1.10"
+
+    [[object.member]]
+    name = "p010_10le"
+    version = "1.10"
+
+    [[object.member]]
+    name = "iyu2"
+    version = "1.10"
+
+    [[object.member]]
+    name = "vyuy"
+    version = "1.12"
+
+    [[object.member]]
+    name = "gbra"
+    version = "1.12"
+
+    [[object.member]]
+    name = "gbra_10be"
+    version = "1.12"
+
+    [[object.member]]
+    name = "gbra_10le"
+    version = "1.12"
+
+    [[object.member]]
+    name = "gbr_12be"
+    version = "1.12"
+
+    [[object.member]]
+    name = "gbr_12le"
+    version = "1.12"
+
+    [[object.member]]
+    name = "gbra_12be"
+    version = "1.12"
+
+    [[object.member]]
+    name = "gbra_12le"
+    version = "1.12"
+
+    [[object.member]]
+    name = "i420_12be"
+    version = "1.12"
+
+    [[object.member]]
+    name = "i420_12le"
+    version = "1.12"
+
+    [[object.member]]
+    name = "i422_12be"
+    version = "1.12"
+
+    [[object.member]]
+    name = "i422_12le"
+    version = "1.12"
+
+    [[object.member]]
+    name = "y444_12be"
+    version = "1.12"
+
+    [[object.member]]
+    name = "y444_12le"
+    version = "1.12"
+
+    [[object.member]]
+    name = "gray10_le32"
+    version = "1.14"
+
+    [[object.member]]
+    name = "nv12_10le32"
+    version = "1.14"
+
+    [[object.member]]
+    name = "nv16_10le32"
+    version = "1.14"
+
+    [[object.member]]
+    name = "nv12_10le40"
+    version = "1.16"
+
+    [[object.member]]
+    name = "y210"
+    version = "1.16"
+
+    [[object.member]]
+    name = "y410"
+    version = "1.16"
+
+    [[object.member]]
+    name = "vuya"
+    version = "1.16"
+
+    [[object.member]]
+    name = "bgr10a2_le"
+    version = "1.16"
+
+    [[object.member]]
+    name = "rgb10a2_le"
+    version = "1.18"
+
+    [[object.member]]
+    name = "y444_16be"
+    version = "1.18"
+
+    [[object.member]]
+    name = "y444_16le"
+    version = "1.18"
+
+    [[object.member]]
+    name = "p016_be"
+    version = "1.18"
+
+    [[object.member]]
+    name = "p016_le"
+    version = "1.18"
+
+    [[object.member]]
+    name = "p012_be"
+    version = "1.18"
+
+    [[object.member]]
+    name = "p012_le"
+    version = "1.18"
+
+    [[object.member]]
+    name = "y212_be"
+    version = "1.18"
+
+    [[object.member]]
+    name = "y212_le"
+    version = "1.18"
+
+    [[object.member]]
+    name = "y412_be"
+    version = "1.18"
+
+    [[object.member]]
+    name = "y412_le"
+    version = "1.18"
+
+    [[object.function]]
+    name = "to_string"
+    # This has an Unknown field that may return NULL or "UNKNOWN"
+    manual = true
+        [object.function.return]
+        nullable = false
+
+    [[object.function]]
+    name = "get_info"
+    # Result is not nullable, function does effectively the same
+    # as VideoFormatInfo::from_format()
+    ignore = true
+
+    [[object.function]]
+    name = "from_masks"
+    # Use custom VideoEndianness enum
+    manual = true
+
+[[object]]
+name = "GstVideo.VideoSink"
+status = "generate"
+
+    [[object.function]]
+    name = "center_rect"
+    # Implemented in video_rectangle
+    manual = true
+
+[[object]]
+name = "GstVideo.VideoOverlayFormatFlags"
+status = "generate"
+    [[object.function]]
+    name = "get_type"
+    version = "1.16"
+    [[object.member]]
+    name = "none"
+    ignore = true
+
+[[object]]
+name = "GstVideo.VideoTimeCodeFlags"
+status = "generate"
+    [[object.function]]
+    name = "get_type"
+    version = "1.18"
+    [[object.member]]
+    name = "none"
+    ignore = true
+
+[[object]]
+name = "GstVideo.VideoFrameFlags"
+status = "generate"
+    [[object.member]]
+    name = "top_field"
+    version = "1.16"
+    [[object.member]]
+    name = "bottom_field"
+    version = "1.16"
+
+[[object]]
+name = "GstVideo.VideoBufferFlags"
+status = "generate"
+    [[object.member]]
+    name = "top_field"
+    version = "1.16"
+    [[object.member]]
+    name = "bottom_field"
+    version = "1.16"
+    [[object.member]]
+    name = "marker"
+    version = "1.18"
+    [[object.member]]
+    name = "last"
+    ignore = true
+
+[[object]]
+name = "GstVideo.VideoInterlaceMode"
+status = "generate"
+    [[object.member]]
+    name = "alternate"
+    version = "1.16"
+
+    [[object.function]]
+    name = "to_string"
+        [object.function.return]
+        nullable = false
+
+[[object]]
+name = "GstVideo.VideoChromaSite"
+status = "generate"
+    [[object.member]]
+    name = "unknown"
+    ignore = true
+
+    [[object.function]]
+    name = "to_string"
+    rename = "to_str"
+    # Manual function for < v1_20:
+    manual = true
+    # Always generate the trait, without version constraint:
+    version = "1.8"
+        [object.function.return]
+        nullable = false
+
+[[object]]
+name = "GstVideo.VideoFlags"
+status = "generate"
+    [[object.member]]
+    name = "none"
+    ignore = true
+
+[[object]]
+name = "GstVideo.VideoFrameFlags"
+status = "generate"
+    [[object.member]]
+    name = "none"
+    ignore = true
+
+[[object]]
+name = "GstVideo.VideoMultiviewFlags"
+status = "generate"
+    [[object.member]]
+    name = "none"
+    ignore = true
+
+[[object]]
+name = "GstVideo.VideoPackFlags"
+status = "generate"
+    [[object.member]]
+    name = "none"
+    ignore = true
+
+[[object]]
+name = "GstVideo.VideoTransferFunction"
+status = "generate"
+    [[object.member]]
+    name = "bt2020_10"
+    version = "1.18"
+    [[object.member]]
+    name = "smpte2084"
+    version = "1.18"
+    [[object.member]]
+    name = "arib_std_b67"
+    version = "1.18"
+
+[[object]]
+name = "GstVideo.VideoColorPrimaries"
+status = "generate"
+    [[object.member]]
+    name = "smptest428"
+    version = "1.16"
+    [[object.member]]
+    name = "smpterp431"
+    version = "1.16"
+    [[object.member]]
+    name = "smpteeg432"
+    version = "1.16"
+    [[object.member]]
+    name = "ebu3213"
+    version = "1.16"
+
+[[object]]
+name = "GstVideo.VideoFieldOrder"
+status = "generate"
+
+    [[object.function]]
+    name = "to_string"
+    # This has an Unknown field that may return NULL or "UNKNOWN"
+    manual = true
+        [object.function.return]
+        nullable = false
+
+[[object]]
+name = "GstVideo.VideoColorMatrix"
+status = "generate"
+    [[object.function]]
+    name = "get_Kr_Kb"
+    # Function and parameter name capitalization is wrong
+    ignore = true

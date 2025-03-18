@@ -1,6 +1,6 @@
-TOML parse error at line 1, column 27
+TOML parse error at line 1, column 5
   |
-1 | just-f                  = f
-  |                           ^
+1 | a = f
+  |     ^
 invalid string
 expected `"`, `'`

@@ -4,71 +4,18 @@
 //! option. This file may not be copied, modified, or distributed
 //! except according to those terms.
 #![no_std]
-#![allow(deprecated)]
 
-use crate::it::chain;
-use crate::it::free::put_back;
+use core::iter;
+use itertools as it;
+use crate::it::Itertools;
 use crate::it::interleave;
 use crate::it::intersperse;
 use crate::it::intersperse_with;
+use crate::it::multizip;
+use crate::it::free::put_back;
 use crate::it::iproduct;
 use crate::it::izip;
-use crate::it::multizip;
-use crate::it::Itertools;
-use core::iter;
-use itertools as it;
-
-#[allow(dead_code)]
-fn get_esi_then_esi<I: ExactSizeIterator + Clone>(it: I) {
-    fn is_esi(_: impl ExactSizeIterator) {}
-    is_esi(it.clone().get(1..4));
-    is_esi(it.clone().get(1..=4));
-    is_esi(it.clone().get(1..));
-    is_esi(it.clone().get(..4));
-    is_esi(it.clone().get(..=4));
-    is_esi(it.get(..));
-}
-
-#[allow(dead_code)]
-fn get_dei_esi_then_dei_esi<I: DoubleEndedIterator + ExactSizeIterator + Clone>(it: I) {
-    fn is_dei_esi(_: impl DoubleEndedIterator + ExactSizeIterator) {}
-    is_dei_esi(it.clone().get(1..4));
-    is_dei_esi(it.clone().get(1..=4));
-    is_dei_esi(it.clone().get(1..));
-    is_dei_esi(it.clone().get(..4));
-    is_dei_esi(it.clone().get(..=4));
-    is_dei_esi(it.get(..));
-}
-
-#[test]
-fn get_1_max() {
-    let mut it = (0..5).get(1..=usize::MAX);
-    assert_eq!(it.next(), Some(1));
-    assert_eq!(it.next_back(), Some(4));
-}
-
-#[test]
-#[should_panic]
-fn get_full_range_inclusive() {
-    let _it = (0..5).get(0..=usize::MAX);
-}
-
-#[test]
-fn product0() {
-    let mut prod = iproduct!();
-    assert_eq!(prod.next(), Some(()));
-    assert!(prod.next().is_none());
-}
-
-#[test]
-fn iproduct1() {
-    let s = "αβ";
-
-    let mut prod = iproduct!(s.chars());
-    assert_eq!(prod.next(), Some(('α',)));
-    assert_eq!(prod.next(), Some(('β',)));
-    assert!(prod.next().is_none());
-}
+use crate::it::chain;
 
 #[test]
 fn product2() {
@@ -79,7 +26,7 @@ fn product2() {
     assert!(prod.next() == Some(('α', 1)));
     assert!(prod.next() == Some(('β', 0)));
     assert!(prod.next() == Some(('β', 1)));
-    assert!(prod.next().is_none());
+    assert!(prod.next() == None);
 }
 
 #[test]
@@ -87,11 +34,12 @@ fn product_temporary() {
     for (_x, _y, _z) in iproduct!(
         [0, 1, 2].iter().cloned(),
         [0, 1, 2].iter().cloned(),
-        [0, 1, 2].iter().cloned()
-    ) {
+        [0, 1, 2].iter().cloned())
+    {
         // ok
     }
 }
+
 
 #[test]
 fn izip_macro() {
@@ -113,7 +61,7 @@ fn izip_macro() {
 #[test]
 fn izip2() {
     let _zip1: iter::Zip<_, _> = izip!(1.., 2..);
-    let _zip2: iter::Zip<_, _> = izip!(1.., 2..,);
+    let _zip2: iter::Zip<_, _> = izip!(1.., 2.., );
 }
 
 #[test]
@@ -161,7 +109,7 @@ fn chain_macro() {
 #[test]
 fn chain2() {
     let _ = chain!(1.., 2..);
-    let _ = chain!(1.., 2..,);
+    let _ = chain!(1.., 2.., );
 }
 
 #[test]
@@ -179,7 +127,7 @@ fn write_to() {
 
 #[test]
 fn test_interleave() {
-    let xs: [u8; 0] = [];
+    let xs: [u8; 0]  = [];
     let ys = [7u8, 9, 8, 10];
     let zs = [2u8, 77];
     let it = interleave(xs.iter(), ys.iter());
@@ -205,6 +153,15 @@ fn test_intersperse_with() {
     let i = 10;
     let it = intersperse_with(&xs, || &i);
     it::assert_equal(it, ys.iter());
+}
+
+#[allow(deprecated)]
+#[test]
+fn foreach() {
+    let xs = [1i32, 2, 3];
+    let mut sum = 0;
+    xs.iter().foreach(|elt| sum += *elt);
+    assert!(sum == 6);
 }
 
 #[test]
@@ -240,10 +197,20 @@ fn test_put_back() {
     it::assert_equal(pb, xs.iter().cloned());
 }
 
+#[allow(deprecated)]
+#[test]
+fn step() {
+    it::assert_equal((0..10).step(1), 0..10);
+    it::assert_equal((0..10).step(2), (0..10).filter(|x: &i32| *x % 2 == 0));
+    it::assert_equal((0..10).step(10), 0..1);
+}
+
+#[allow(deprecated)]
 #[test]
 fn merge() {
-    it::assert_equal((0..10).step_by(2).merge((1..10).step_by(2)), 0..10);
+    it::assert_equal((0..10).step(2).merge((1..10).step(2)), 0..10);
 }
+
 
 #[test]
 fn repeatn() {
@@ -264,33 +231,29 @@ fn count_clones() {
     use core::cell::Cell;
     #[derive(PartialEq, Debug)]
     struct Foo {
-        n: Cell<usize>,
+        n: Cell<usize>
     }
 
-    impl Clone for Foo {
-        fn clone(&self) -> Self {
+    impl Clone for Foo
+    {
+        fn clone(&self) -> Self
+        {
             let n = self.n.get();
             self.n.set(n + 1);
-            Self {
-                n: Cell::new(n + 1),
-            }
+            Foo { n: Cell::new(n + 1) }
         }
     }
 
+
     for n in 0..10 {
-        let f = Foo { n: Cell::new(0) };
+        let f = Foo{n: Cell::new(0)};
         let it = it::repeat_n(f, n);
         // drain it
         let last = it.last();
         if n == 0 {
             assert_eq!(last, None);
         } else {
-            assert_eq!(
-                last,
-                Some(Foo {
-                    n: Cell::new(n - 1)
-                })
-            );
+            assert_eq!(last, Some(Foo{n: Cell::new(n - 1)}));
         }
     }
 }
@@ -313,45 +276,25 @@ fn part() {
 }
 
 #[test]
-fn tree_reduce() {
+fn tree_fold1() {
     for i in 0..100 {
-        assert_eq!((0..i).tree_reduce(|x, y| x + y), (0..i).fold1(|x, y| x + y));
+        assert_eq!((0..i).tree_fold1(|x, y| x + y), (0..i).fold1(|x, y| x + y));
     }
 }
 
 #[test]
 fn exactly_one() {
     assert_eq!((0..10).filter(|&x| x == 2).exactly_one().unwrap(), 2);
-    assert!((0..10)
-        .filter(|&x| x > 1 && x < 4)
-        .exactly_one()
-        .unwrap_err()
-        .eq(2..4));
-    assert!((0..10)
-        .filter(|&x| x > 1 && x < 5)
-        .exactly_one()
-        .unwrap_err()
-        .eq(2..5));
-    assert!((0..10)
-        .filter(|&_| false)
-        .exactly_one()
-        .unwrap_err()
-        .eq(0..0));
+    assert!((0..10).filter(|&x| x > 1 && x < 4).exactly_one().unwrap_err().eq(2..4));
+    assert!((0..10).filter(|&x| x > 1 && x < 5).exactly_one().unwrap_err().eq(2..5));
+    assert!((0..10).filter(|&_| false).exactly_one().unwrap_err().eq(0..0));
 }
 
 #[test]
 fn at_most_one() {
     assert_eq!((0..10).filter(|&x| x == 2).at_most_one().unwrap(), Some(2));
-    assert!((0..10)
-        .filter(|&x| x > 1 && x < 4)
-        .at_most_one()
-        .unwrap_err()
-        .eq(2..4));
-    assert!((0..10)
-        .filter(|&x| x > 1 && x < 5)
-        .at_most_one()
-        .unwrap_err()
-        .eq(2..5));
+    assert!((0..10).filter(|&x| x > 1 && x < 4).at_most_one().unwrap_err().eq(2..4));
+    assert!((0..10).filter(|&x| x > 1 && x < 5).at_most_one().unwrap_err().eq(2..5));
     assert_eq!((0..10).filter(|&_| false).at_most_one().unwrap(), None);
 }
 

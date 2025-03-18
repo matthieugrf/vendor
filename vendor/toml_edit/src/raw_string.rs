@@ -21,8 +21,6 @@ impl RawString {
     }
 
     /// Access the underlying string
-    ///
-    /// This generally requires a [`DocumentMut`][crate::DocumentMut].
     pub fn as_str(&self) -> Option<&str> {
         match &self.0 {
             RawStringInner::Empty => Some(""),
@@ -31,24 +29,13 @@ impl RawString {
         }
     }
 
-    /// The location within the original document
-    ///
-    /// This generally requires an [`ImDocument`][crate::ImDocument].
-    pub fn span(&self) -> Option<std::ops::Range<usize>> {
-        match &self.0 {
-            RawStringInner::Empty => None,
-            RawStringInner::Explicit(_) => None,
-            RawStringInner::Spanned(span) => Some(span.clone()),
-        }
-    }
-
     pub(crate) fn to_str<'s>(&'s self, input: &'s str) -> &'s str {
         match &self.0 {
             RawStringInner::Empty => "",
             RawStringInner::Explicit(s) => s.as_str(),
-            RawStringInner::Spanned(span) => input
-                .get(span.clone())
-                .unwrap_or_else(|| panic!("span {span:?} should be in input:\n```\n{input}\n```")),
+            RawStringInner::Spanned(span) => input.get(span.clone()).unwrap_or_else(|| {
+                panic!("span {:?} should be in input:\n```\n{}\n```", span, input)
+            }),
         }
     }
 
@@ -63,12 +50,21 @@ impl RawString {
             RawStringInner::Spanned(span) => {
                 if let Some(input) = input {
                     input.get(span.clone()).unwrap_or_else(|| {
-                        panic!("span {span:?} should be in input:\n```\n{input}\n```")
+                        panic!("span {:?} should be in input:\n```\n{}\n```", span, input)
                     })
                 } else {
                     default
                 }
             }
+        }
+    }
+
+    /// Access the underlying span
+    pub(crate) fn span(&self) -> Option<std::ops::Range<usize>> {
+        match &self.0 {
+            RawStringInner::Empty => None,
+            RawStringInner::Explicit(_) => None,
+            RawStringInner::Spanned(span) => Some(span.clone()),
         }
     }
 
@@ -78,22 +74,20 @@ impl RawString {
             RawStringInner::Explicit(_) => {}
             RawStringInner::Spanned(span) => {
                 *self = Self::from(input.get(span.clone()).unwrap_or_else(|| {
-                    panic!("span {span:?} should be in input:\n```\n{input}\n```")
-                }));
+                    panic!("span {:?} should be in input:\n```\n{}\n```", span, input)
+                }))
             }
         }
     }
 
-    #[cfg(feature = "display")]
     pub(crate) fn encode(&self, buf: &mut dyn std::fmt::Write, input: &str) -> std::fmt::Result {
         let raw = self.to_str(input);
         for part in raw.split('\r') {
-            write!(buf, "{part}")?;
+            write!(buf, "{}", part)?;
         }
         Ok(())
     }
 
-    #[cfg(feature = "display")]
     pub(crate) fn encode_with_default(
         &self,
         buf: &mut dyn std::fmt::Write,
@@ -102,7 +96,7 @@ impl RawString {
     ) -> std::fmt::Result {
         let raw = self.to_str_with_default(input, default);
         for part in raw.split('\r') {
-            write!(buf, "{part}")?;
+            write!(buf, "{}", part)?;
         }
         Ok(())
     }
@@ -119,8 +113,8 @@ impl std::fmt::Debug for RawString {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         match &self.0 {
             RawStringInner::Empty => write!(formatter, "empty"),
-            RawStringInner::Explicit(s) => write!(formatter, "{s:?}"),
-            RawStringInner::Spanned(s) => write!(formatter, "{s:?}"),
+            RawStringInner::Explicit(s) => write!(formatter, "{:?}", s),
+            RawStringInner::Spanned(s) => write!(formatter, "{:?}", s),
         }
     }
 }

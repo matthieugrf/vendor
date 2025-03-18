@@ -1,6 +1,6 @@
-TOML parse error at line 1, column 27
+TOML parse error at line 1, column 5
   |
-1 | almost-false-with-extra = falsify
-  |                           ^
+1 | a = falsify
+  |     ^
 invalid string
 expected `"`, `'`

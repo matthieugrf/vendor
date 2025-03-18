@@ -2,8 +2,8 @@ use criterion::black_box;
 
 use winnow::combinator::repeat;
 use winnow::prelude::*;
-use winnow::token::literal;
 use winnow::token::one_of;
+use winnow::token::tag;
 
 fn next_slice(c: &mut criterion::Criterion) {
     let mut group = c.benchmark_group("next_slice");
@@ -89,44 +89,44 @@ fn next_slice(c: &mut criterion::Criterion) {
     group.finish();
 }
 
-fn parser_ascii_char(input: &mut &str) -> ModalResult<usize> {
+fn parser_ascii_char(input: &mut &str) -> PResult<usize> {
     repeat(0.., 'h').parse_next(input)
 }
 
-fn parser_ascii_str(input: &mut &str) -> ModalResult<usize> {
+fn parser_ascii_str(input: &mut &str) -> PResult<usize> {
     repeat(0.., "h").parse_next(input)
 }
 
-fn parser_ascii_one_of(input: &mut &str) -> ModalResult<usize> {
+fn parser_ascii_one_of(input: &mut &str) -> PResult<usize> {
     repeat(0.., one_of('h')).parse_next(input)
 }
 
-fn parser_ascii_tag_char(input: &mut &str) -> ModalResult<usize> {
-    repeat(0.., literal('h')).parse_next(input)
+fn parser_ascii_tag_char(input: &mut &str) -> PResult<usize> {
+    repeat(0.., tag('h')).parse_next(input)
 }
 
-fn parser_ascii_tag_str(input: &mut &str) -> ModalResult<usize> {
-    repeat(0.., literal("h")).parse_next(input)
+fn parser_ascii_tag_str(input: &mut &str) -> PResult<usize> {
+    repeat(0.., tag("h")).parse_next(input)
 }
 
-fn parser_utf8_char(input: &mut &str) -> ModalResult<usize> {
+fn parser_utf8_char(input: &mut &str) -> PResult<usize> {
     repeat(0.., '🧑').parse_next(input)
 }
 
-fn parser_utf8_str(input: &mut &str) -> ModalResult<usize> {
+fn parser_utf8_str(input: &mut &str) -> PResult<usize> {
     repeat(0.., "🧑").parse_next(input)
 }
 
-fn parser_utf8_one_of(input: &mut &str) -> ModalResult<usize> {
+fn parser_utf8_one_of(input: &mut &str) -> PResult<usize> {
     repeat(0.., one_of('🧑')).parse_next(input)
 }
 
-fn parser_utf8_tag_char(input: &mut &str) -> ModalResult<usize> {
-    repeat(0.., literal('🧑')).parse_next(input)
+fn parser_utf8_tag_char(input: &mut &str) -> PResult<usize> {
+    repeat(0.., tag('🧑')).parse_next(input)
 }
 
-fn parser_utf8_tag_str(input: &mut &str) -> ModalResult<usize> {
-    repeat(0.., literal("🧑")).parse_next(input)
+fn parser_utf8_tag_str(input: &mut &str) -> PResult<usize> {
+    repeat(0.., tag("🧑")).parse_next(input)
 }
 
 criterion::criterion_group!(benches, next_slice);

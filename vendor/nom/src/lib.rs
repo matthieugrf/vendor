@@ -6,6 +6,8 @@
 //! ## Example
 //!
 //! ```rust
+//! extern crate nom;
+//!
 //! use nom::{
 //!   IResult,
 //!   bytes::complete::{tag, take_while_m_n},
@@ -52,16 +54,18 @@
 //!
 //! The code is available on [Github](https://github.com/Geal/nom)
 //!
-//! There are a few [guides](https://github.com/Geal/nom/tree/main/doc) with more details
-//! about [how to write parsers](https://github.com/Geal/nom/blob/main/doc/making_a_new_parser_from_scratch.md),
-//! or the [error management system](https://github.com/Geal/nom/blob/main/doc/error_management.md).
-//! You can also check out the [recipes] module that contains examples of common patterns.
+//! There are a few [guides](https://github.com/Geal/nom/tree/master/doc) with more details
+//! about [the design of nom macros](https://github.com/Geal/nom/blob/master/doc/how_nom_macros_work.md),
+//! [how to write parsers](https://github.com/Geal/nom/blob/master/doc/making_a_new_parser_from_scratch.md),
+//! or the [error management system](https://github.com/Geal/nom/blob/master/doc/error_management.md).
 //!
 //! **Looking for a specific combinator? Read the
-//! ["choose a combinator" guide](https://github.com/Geal/nom/blob/main/doc/choosing_a_combinator.md)**
+//! ["choose a combinator" guide](https://github.com/Geal/nom/blob/master/doc/choosing_a_combinator.md)**
 //!
 //! If you are upgrading to nom 5.0, please read the
-//! [migration document](https://github.com/Geal/nom/blob/main/doc/upgrading_to_nom_5.md).
+//! [migration document](https://github.com/Geal/nom/blob/master/doc/upgrading_to_nom_5.md).
+//!
+//! See also the [FAQ](https://github.com/Geal/nom/blob/master/doc/FAQ.md).
 //!
 //! ## Parser combinators
 //!
@@ -77,11 +81,11 @@
 //!
 //! This gives us a few advantages:
 //!
-//! - The parsers are small and easy to write
-//! - The parsers components are easy to reuse (if they're general enough, please add them to nom!)
-//! - The parsers components are easy to test separately (unit tests and property-based tests)
-//! - The parser combination code looks close to the grammar you would have written
-//! - You can build partial parsers, specific to the data you need at the moment, and ignore the rest
+//! - the parsers are small and easy to write
+//! - the parsers components are easy to reuse (if they're general enough, please add them to nom!)
+//! - the parsers components are easy to test separately (unit tests and property-based tests)
+//! - the parser combination code looks close to the grammar you would have written
+//! - you can build partial parsers, specific to the data you need at the moment, and ignore the rest
 //!
 //! Here is an example of one such parser, to recognize text between parentheses:
 //!
@@ -106,12 +110,15 @@
 //! Here is another parser, written without using nom's combinators this time:
 //!
 //! ```rust
+//! #[macro_use]
+//! extern crate nom;
+//!
 //! use nom::{IResult, Err, Needed};
 //!
 //! # fn main() {
 //! fn take4(i: &[u8]) -> IResult<&[u8], &[u8]>{
 //!   if i.len() < 4 {
-//!     Err(Err::Incomplete(Needed::new(4)))
+//!     Err(Err::Incomplete(Needed::Size(4)))
 //!   } else {
 //!     Ok((&i[4..], &i[0..4]))
 //!   }
@@ -122,7 +129,7 @@
 //! This function takes a byte array as input, and tries to consume 4 bytes.
 //! Writing all the parsers manually, like this, is dangerous, despite Rust's
 //! safety features. There are still a lot of mistakes one can make. That's why
-//! nom provides a list of functions to help in developing parsers.
+//! nom provides a list of function and macros to help in developing parsers.
 //!
 //! With functions, you would write it like this:
 //!
@@ -133,25 +140,43 @@
 //! }
 //! ```
 //!
+//! With macros, you would write it like this:
+//!
+//! ```rust
+//! #[macro_use]
+//! extern crate nom;
+//!
+//! # fn main() {
+//! named!(take4, take!(4));
+//! # }
+//! ```
+//!
+//! nom has used macros for combinators from versions 1 to 4, and from version
+//! 5, it proposes new combinators as functions, but still allows the macros style
+//! (macros have been rewritten to use the functions under the hood).
+//! For new parsers, we recommend using the functions instead of macros, since
+//! rustc messages will be much easier to understand.
+//!
+//!
 //! A parser in nom is a function which, for an input type `I`, an output type `O`
 //! and an optional error type `E`, will have the following signature:
 //!
-//! ```rust,compile_fail
+//! ```rust,ignore
 //! fn parser(input: I) -> IResult<I, O, E>;
 //! ```
 //!
-//! Or like this, if you don't want to specify a custom error type (it will be `(I, ErrorKind)` by default):
+//! Or like this, if you don't want to specify a custom error type (it will be `u32` by default):
 //!
-//! ```rust,compile_fail
+//! ```rust,ignore
 //! fn parser(input: I) -> IResult<I, O>;
 //! ```
 //!
 //! `IResult` is an alias for the `Result` type:
 //!
 //! ```rust
-//! use nom::{Needed, error::Error};
+//! use nom::{Needed, error::ErrorKind};
 //!
-//! type IResult<I, O, E = Error<I>> = Result<(I, O), Err<E>>;
+//! type IResult<I, O, E = (I,ErrorKind)> = Result<(I, O), Err<E>>;
 //!
 //! enum Err<E> {
 //!   Incomplete(Needed),
@@ -162,13 +187,14 @@
 //!
 //! It can have the following values:
 //!
-//! - A correct result `Ok((I,O))` with the first element being the remaining of the input (not parsed yet), and the second the output value;
-//! - An error `Err(Err::Error(c))` with `c` an error that can be built from the input position and a parser specific error
-//! - An error `Err(Err::Incomplete(Needed))` indicating that more input is necessary. `Needed` can indicate how much data is needed
-//! - An error `Err(Err::Failure(c))`. It works like the `Error` case, except it indicates an unrecoverable error: We cannot backtrack and test another parser
+//! - a correct result `Ok((I,O))` with the first element being the remaining of the input (not parsed yet), and the second the output value;
+//! - an error `Err(Err::Error(c))` with `c` an error that can be built from the input position and a parser specific error
+//! - an error `Err(Err::Incomplete(Needed))` indicating that more input is necessary. `Needed` can indicate how much data is needed
+//! - an error `Err(Err::Failure(c))`. It works like the `Error` case, except it indicates an unrecoverable error: we cannot backtrack and test another parser
 //!
-//! Please refer to the ["choose a combinator" guide](https://github.com/Geal/nom/blob/main/doc/choosing_a_combinator.md) for an exhaustive list of parsers.
-//! See also the rest of the documentation [here](https://github.com/Geal/nom/blob/main/doc).
+//! Please refer to the ["choose a combinator" guide](https://github.com/Geal/nom/blob/master/doc/choosing_a_combinator.md) for an exhaustive list of parsers.
+//! See also the rest of the documentation [here](https://github.com/Geal/nom/blob/master/doc).
+//! .
 //!
 //! ## Making new parsers with function combinators
 //!
@@ -204,7 +230,7 @@
 //! use nom::branch::alt;
 //! use nom::bytes::complete::tag;
 //!
-//! let mut alt_tags = alt((tag("abcd"), tag("efgh")));
+//! let alt_tags = alt((tag("abcd"), tag("efgh")));
 //!
 //! assert_eq!(alt_tags(&b"abcdxxx"[..]), Ok((&b"xxx"[..], &b"abcd"[..])));
 //! assert_eq!(alt_tags(&b"efghxxx"[..]), Ok((&b"xxx"[..], &b"efgh"[..])));
@@ -227,6 +253,7 @@
 //! **`many0`** applies a parser 0 or more times, and returns a vector of the aggregated results:
 //!
 //! ```rust
+//! # #[macro_use] extern crate nom;
 //! # #[cfg(feature = "alloc")]
 //! # fn main() {
 //! use nom::{IResult, multi::many0, bytes::complete::tag};
@@ -247,25 +274,26 @@
 //! # fn main() {}
 //! ```
 //!
-//! Here are some basic combinators available:
+//! Here are some basic combining macros available:
 //!
-//! - **`opt`**: Will make the parser optional (if it returns the `O` type, the new parser returns `Option<O>`)
-//! - **`many0`**: Will apply the parser 0 or more times (if it returns the `O` type, the new parser returns `Vec<O>`)
-//! - **`many1`**: Will apply the parser 1 or more times
+//! - **`opt`**: will make the parser optional (if it returns the `O` type, the new parser returns `Option<O>`)
+//! - **`many0`**: will apply the parser 0 or more times (if it returns the `O` type, the new parser returns `Vec<O>`)
+//! - **`many1`**: will apply the parser 1 or more times
 //!
-//! There are more complex (and more useful) parsers like `tuple`, which is
+//! There are more complex (and more useful) parsers like `tuple!`, which is
 //! used to apply a series of parsers then assemble their results.
 //!
 //! Example with `tuple`:
 //!
 //! ```rust
+//! # #[macro_use] extern crate nom;
 //! # fn main() {
 //! use nom::{error::ErrorKind, Needed,
 //! number::streaming::be_u16,
 //! bytes::streaming::{tag, take},
 //! sequence::tuple};
 //!
-//! let mut tpl = tuple((be_u16, take(3u8), tag("fg")));
+//! let tpl = tuple((be_u16, take(3u8), tag("fg")));
 //!
 //! assert_eq!(
 //!   tpl(&b"abcdefgh"[..]),
@@ -274,7 +302,7 @@
 //!     (0x6162u16, &b"cde"[..], &b"fg"[..])
 //!   ))
 //! );
-//! assert_eq!(tpl(&b"abcde"[..]), Err(nom::Err::Incomplete(Needed::new(2))));
+//! assert_eq!(tpl(&b"abcde"[..]), Err(nom::Err::Incomplete(Needed::Size(2))));
 //! let input = &b"abcdejk"[..];
 //! assert_eq!(tpl(input), Err(nom::Err::Error((&input[5..], ErrorKind::Tag))));
 //! # }
@@ -284,6 +312,7 @@
 //! thanks to the `?` operator:
 //!
 //! ```rust
+//! # #[macro_use] extern crate nom;
 //! # fn main() {
 //! use nom::{IResult, bytes::complete::tag};
 //!
@@ -327,7 +356,7 @@
 //! Here is how it works in practice:
 //!
 //! ```rust
-//! use nom::{IResult, Err, Needed, error::{Error, ErrorKind}, bytes, character};
+//! use nom::{IResult, Err, Needed, error::ErrorKind, bytes, character};
 //!
 //! fn take_streaming(i: &[u8]) -> IResult<&[u8], &[u8]> {
 //!   bytes::streaming::take(4u8)(i)
@@ -343,10 +372,10 @@
 //!
 //! // if the input is smaller than 4 bytes, the streaming parser
 //! // will return `Incomplete` to indicate that we need more data
-//! assert_eq!(take_streaming(&b"abc"[..]), Err(Err::Incomplete(Needed::new(1))));
+//! assert_eq!(take_streaming(&b"abc"[..]), Err(Err::Incomplete(Needed::Size(4))));
 //!
 //! // but the complete parser will return an error
-//! assert_eq!(take_complete(&b"abc"[..]), Err(Err::Error(Error::new(&b"abc"[..], ErrorKind::Eof))));
+//! assert_eq!(take_complete(&b"abc"[..]), Err(Err::Error((&b"abc"[..], ErrorKind::Eof))));
 //!
 //! // the alpha0 function recognizes 0 or more alphabetic characters
 //! fn alpha0_streaming(i: &str) -> IResult<&str, &str> {
@@ -364,101 +393,121 @@
 //! // but when there's no limit, the streaming version returns `Incomplete`, because it cannot
 //! // know if more input data should be recognized. The whole input could be "abcd;", or
 //! // "abcde;"
-//! assert_eq!(alpha0_streaming("abcd"), Err(Err::Incomplete(Needed::new(1))));
+//! assert_eq!(alpha0_streaming("abcd"), Err(Err::Incomplete(Needed::Size(1))));
 //!
 //! // while the complete version knows that all of the data is there
 //! assert_eq!(alpha0_complete("abcd"), Ok(("", "abcd")));
 //! ```
-//! **Going further:** Read the [guides](https://github.com/Geal/nom/tree/main/doc),
-//! check out the [recipes]!
+//! **Going further:** read the [guides](https://github.com/Geal/nom/tree/master/doc)!
+#![cfg_attr(all(not(feature = "std"), feature = "alloc"), feature(alloc))]
 #![cfg_attr(not(feature = "std"), no_std)]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::doc_markdown))]
-#![cfg_attr(feature = "docsrs", feature(doc_cfg))]
-#![cfg_attr(feature = "docsrs", feature(extended_key_value_attributes))]
+#![cfg_attr(feature = "cargo-clippy", allow(doc_markdown))]
+#![cfg_attr(nightly, feature(test))]
 #![deny(missing_docs)]
-#[cfg_attr(nightly, warn(rustdoc::missing_doc_code_examples))]
-#[cfg(feature = "alloc")]
+#![warn(missing_doc_code_examples)]
+
+#[cfg(all(not(feature = "std"), feature = "alloc"))]
 #[macro_use]
 extern crate alloc;
-#[cfg(doctest)]
+#[cfg(feature = "regexp_macros")]
+#[macro_use]
+extern crate lazy_static;
+extern crate memchr;
+#[cfg(feature = "regexp")]
+pub extern crate regex;
+#[cfg(feature = "lexical")]
+extern crate lexical_core;
+#[cfg(nightly)]
+extern crate test;
+#[cfg(test)]
 extern crate doc_comment;
 
-#[cfg(doctest)]
-doc_comment::doctest!("../README.md");
+//FIXME: reactivate doctest once https://github.com/rust-lang/rust/issues/62210 is done
+//#[cfg(doctest)]
+//doc_comment::doctest!("../README.md");
 
 /// Lib module to re-export everything needed from `std` or `core`/`alloc`. This is how `serde` does
 /// it, albeit there it is not public.
-#[cfg_attr(nightly, allow(rustdoc::missing_doc_code_examples))]
 pub mod lib {
   /// `std` facade allowing `std`/`core` to be interchangeable. Reexports `alloc` crate optionally,
   /// as well as `core` or `std`
   #[cfg(not(feature = "std"))]
-  #[cfg_attr(nightly, allow(rustdoc::missing_doc_code_examples))]
   /// internal std exports for no_std compatibility
   pub mod std {
-    #[doc(hidden)]
-    #[cfg(not(feature = "alloc"))]
-    pub use core::borrow;
-
     #[cfg(feature = "alloc")]
-    #[doc(hidden)]
-    pub use alloc::{borrow, boxed, string, vec};
+    #[cfg_attr(feature = "alloc", macro_use)]
+    pub use alloc::{boxed, string, vec};
 
-    #[doc(hidden)]
-    pub use core::{cmp, convert, fmt, iter, mem, ops, option, result, slice, str};
+    pub use core::{cmp, convert, fmt, iter, mem, ops, option, result, slice, str, borrow};
 
     /// internal reproduction of std prelude
-    #[doc(hidden)]
     pub mod prelude {
       pub use core::prelude as v1;
     }
   }
 
   #[cfg(feature = "std")]
-  #[cfg_attr(nightly, allow(rustdoc::missing_doc_code_examples))]
   /// internal std exports for no_std compatibility
   pub mod std {
-    #[doc(hidden)]
-    pub use std::{
-      alloc, borrow, boxed, cmp, collections, convert, fmt, hash, iter, mem, ops, option, result,
-      slice, str, string, vec,
-    };
+    pub use std::{alloc, boxed, cmp, collections, convert, fmt, hash, iter, mem, ops, option, result, slice, str, string, vec, borrow};
 
     /// internal reproduction of std prelude
-    #[doc(hidden)]
     pub mod prelude {
       pub use std::prelude as v1;
     }
   }
+
+  #[cfg(feature = "regexp")]
+  pub use regex;
 }
 
-pub use self::bits::*;
-pub use self::internal::*;
 pub use self::traits::*;
+pub use self::util::*;
+pub use self::internal::*;
+pub use self::methods::*;
+pub use self::bits::*;
+pub use self::whitespace::*;
 
+#[cfg(feature = "regexp")]
+pub use self::regexp::*;
 pub use self::str::*;
 
 #[macro_use]
-mod macros;
+mod util;
+
 #[macro_use]
 pub mod error;
 
-pub mod branch;
-pub mod combinator;
+#[macro_use]
 mod internal;
-pub mod multi;
-pub mod sequence;
 mod traits;
+#[macro_use]
+pub mod combinator;
+#[macro_use]
+pub mod branch;
+#[macro_use]
+pub mod sequence;
+#[macro_use]
+pub mod multi;
+#[macro_use]
+pub mod methods;
 
-pub mod bits;
+#[macro_use]
 pub mod bytes;
+#[macro_use]
+pub mod bits;
 
+#[macro_use]
 pub mod character;
+
+#[macro_use]
+pub mod whitespace;
+
+#[cfg(feature = "regexp")]
+#[macro_use]
+mod regexp;
 
 mod str;
 
+#[macro_use]
 pub mod number;
-
-#[cfg(feature = "docsrs")]
-#[cfg_attr(feature = "docsrs", cfg_attr(feature = "docsrs", doc = include_str!("../doc/nom_recipes.md")))]
-pub mod recipes {}

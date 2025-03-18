@@ -1,18 +1,17 @@
 use std::ops::RangeInclusive;
 
-use crate::parser::error::CustomError;
+use crate::parser::errors::CustomError;
 use crate::parser::prelude::*;
 use crate::parser::trivia::from_utf8_unchecked;
 
-use toml_datetime::{Date, Datetime, Offset, Time};
+use toml_datetime::*;
 use winnow::combinator::alt;
 use winnow::combinator::cut_err;
 use winnow::combinator::opt;
 use winnow::combinator::preceded;
-use winnow::combinator::trace;
-use winnow::stream::Stream as _;
 use winnow::token::one_of;
 use winnow::token::take_while;
+use winnow::trace::trace;
 
 // ;; Date and Time (as defined in RFC 3339)
 
@@ -22,7 +21,7 @@ use winnow::token::take_while;
 // local-date = full-date
 // local-time = partial-time
 // full-time = partial-time time-offset
-pub(crate) fn date_time(input: &mut Input<'_>) -> ModalResult<Datetime> {
+pub(crate) fn date_time(input: &mut Input<'_>) -> PResult<Datetime> {
     trace(
         "date-time",
         alt((
@@ -53,37 +52,17 @@ pub(crate) fn date_time(input: &mut Input<'_>) -> ModalResult<Datetime> {
 }
 
 // full-date      = date-fullyear "-" date-month "-" date-mday
-pub(crate) fn full_date(input: &mut Input<'_>) -> ModalResult<Date> {
-    trace("full-date", full_date_).parse_next(input)
-}
-
-fn full_date_(input: &mut Input<'_>) -> ModalResult<Date> {
-    let year = date_fullyear.parse_next(input)?;
-    let _ = b'-'.parse_next(input)?;
-    let month = cut_err(date_month).parse_next(input)?;
-    let _ = cut_err(b'-').parse_next(input)?;
-    let day_start = input.checkpoint();
-    let day = cut_err(date_mday).parse_next(input)?;
-
-    let is_leap_year = (year % 4 == 0) && ((year % 100 != 0) || (year % 400 == 0));
-    let max_days_in_month = match month {
-        2 if is_leap_year => 29,
-        2 => 28,
-        4 | 6 | 9 | 11 => 30,
-        _ => 31,
-    };
-    if max_days_in_month < day {
-        input.reset(&day_start);
-        return Err(
-            winnow::error::ErrMode::from_external_error(input, CustomError::OutOfRange).cut(),
-        );
-    }
-
-    Ok(Date { year, month, day })
+pub(crate) fn full_date(input: &mut Input<'_>) -> PResult<Date> {
+    trace(
+        "full-date",
+        (date_fullyear, b'-', cut_err((date_month, b'-', date_mday)))
+            .map(|(year, _, (month, _, day))| Date { year, month, day }),
+    )
+    .parse_next(input)
 }
 
 // partial-time   = time-hour ":" time-minute ":" time-second [time-secfrac]
-pub(crate) fn partial_time(input: &mut Input<'_>) -> ModalResult<Time> {
+pub(crate) fn partial_time(input: &mut Input<'_>) -> PResult<Time> {
     trace(
         "partial-time",
         (
@@ -103,7 +82,7 @@ pub(crate) fn partial_time(input: &mut Input<'_>) -> ModalResult<Time> {
 
 // time-offset    = "Z" / time-numoffset
 // time-numoffset = ( "+" / "-" ) time-hour ":" time-minute
-pub(crate) fn time_offset(input: &mut Input<'_>) -> ModalResult<Offset> {
+pub(crate) fn time_offset(input: &mut Input<'_>) -> PResult<Offset> {
     trace(
         "time-offset",
         alt((
@@ -129,14 +108,14 @@ pub(crate) fn time_offset(input: &mut Input<'_>) -> ModalResult<Offset> {
 }
 
 // date-fullyear  = 4DIGIT
-pub(crate) fn date_fullyear(input: &mut Input<'_>) -> ModalResult<u16> {
+pub(crate) fn date_fullyear(input: &mut Input<'_>) -> PResult<u16> {
     unsigned_digits::<4, 4>
         .map(|s: &str| s.parse::<u16>().expect("4DIGIT should match u8"))
         .parse_next(input)
 }
 
 // date-month     = 2DIGIT  ; 01-12
-pub(crate) fn date_month(input: &mut Input<'_>) -> ModalResult<u8> {
+pub(crate) fn date_month(input: &mut Input<'_>) -> PResult<u8> {
     unsigned_digits::<2, 2>
         .try_map(|s: &str| {
             let d = s.parse::<u8>().expect("2DIGIT should match u8");
@@ -150,7 +129,7 @@ pub(crate) fn date_month(input: &mut Input<'_>) -> ModalResult<u8> {
 }
 
 // date-mday      = 2DIGIT  ; 01-28, 01-29, 01-30, 01-31 based on month/year
-pub(crate) fn date_mday(input: &mut Input<'_>) -> ModalResult<u8> {
+pub(crate) fn date_mday(input: &mut Input<'_>) -> PResult<u8> {
     unsigned_digits::<2, 2>
         .try_map(|s: &str| {
             let d = s.parse::<u8>().expect("2DIGIT should match u8");
@@ -164,14 +143,14 @@ pub(crate) fn date_mday(input: &mut Input<'_>) -> ModalResult<u8> {
 }
 
 // time-delim     = "T" / %x20 ; T, t, or space
-pub(crate) fn time_delim(input: &mut Input<'_>) -> ModalResult<u8> {
+pub(crate) fn time_delim(input: &mut Input<'_>) -> PResult<u8> {
     one_of(TIME_DELIM).parse_next(input)
 }
 
 const TIME_DELIM: (u8, u8, u8) = (b'T', b't', b' ');
 
 // time-hour      = 2DIGIT  ; 00-23
-pub(crate) fn time_hour(input: &mut Input<'_>) -> ModalResult<u8> {
+pub(crate) fn time_hour(input: &mut Input<'_>) -> PResult<u8> {
     unsigned_digits::<2, 2>
         .try_map(|s: &str| {
             let d = s.parse::<u8>().expect("2DIGIT should match u8");
@@ -185,7 +164,7 @@ pub(crate) fn time_hour(input: &mut Input<'_>) -> ModalResult<u8> {
 }
 
 // time-minute    = 2DIGIT  ; 00-59
-pub(crate) fn time_minute(input: &mut Input<'_>) -> ModalResult<u8> {
+pub(crate) fn time_minute(input: &mut Input<'_>) -> PResult<u8> {
     unsigned_digits::<2, 2>
         .try_map(|s: &str| {
             let d = s.parse::<u8>().expect("2DIGIT should match u8");
@@ -199,7 +178,7 @@ pub(crate) fn time_minute(input: &mut Input<'_>) -> ModalResult<u8> {
 }
 
 // time-second    = 2DIGIT  ; 00-58, 00-59, 00-60 based on leap second rules
-pub(crate) fn time_second(input: &mut Input<'_>) -> ModalResult<u8> {
+pub(crate) fn time_second(input: &mut Input<'_>) -> PResult<u8> {
     unsigned_digits::<2, 2>
         .try_map(|s: &str| {
             let d = s.parse::<u8>().expect("2DIGIT should match u8");
@@ -213,7 +192,7 @@ pub(crate) fn time_second(input: &mut Input<'_>) -> ModalResult<u8> {
 }
 
 // time-secfrac   = "." 1*DIGIT
-pub(crate) fn time_secfrac(input: &mut Input<'_>) -> ModalResult<u32> {
+pub(crate) fn time_secfrac(input: &mut Input<'_>) -> PResult<u32> {
     static SCALE: [u32; 10] = [
         0,
         100_000_000,
@@ -250,7 +229,7 @@ pub(crate) fn time_secfrac(input: &mut Input<'_>) -> ModalResult<u32> {
 
 pub(crate) fn unsigned_digits<'i, const MIN: usize, const MAX: usize>(
     input: &mut Input<'i>,
-) -> ModalResult<&'i str> {
+) -> PResult<&'i str> {
     take_while(MIN..=MAX, DIGIT)
         .map(|b: &[u8]| unsafe { from_utf8_unchecked(b, "`is_ascii_digit` filters out on-ASCII") })
         .parse_next(input)
@@ -260,8 +239,6 @@ pub(crate) fn unsigned_digits<'i, const MIN: usize, const MAX: usize>(
 const DIGIT: RangeInclusive<u8> = b'0'..=b'9';
 
 #[cfg(test)]
-#[cfg(feature = "parse")]
-#[cfg(feature = "display")]
 mod test {
     use super::*;
 
