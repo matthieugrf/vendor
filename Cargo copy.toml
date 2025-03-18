@@ -1,0 +1,119 @@
+[package]
+name = "offline"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+###################################
+#         Sérialisation           #
+###################################
+#serde = "1.0"
+#serde_derive = "1.0"
+#serde_json = "1.0"
+#serde_yaml = "0.9"
+#toml = "0.8"
+#yaml-rust = "0.4"
+
+###################################
+#     Async / Concurrence         #
+###################################
+#tokio = { version = "1.28", features = ["full"] }
+#futures = "0.3"
+#rayon = "1.6"
+#crossbeam = "0.8"
+#crossbeam-channel = "0.5"
+#dashmap = "5.4"
+
+###################################
+#          Réseau / HTTP          #
+###################################
+#reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
+#url = "2.3"
+#actix-web = "4.3"
+#warp = "0.3"
+#tungstenite = "0.20"
+#tokio-tungstenite = "0.17"
+
+###################################
+#        Logging / Tracing        #
+###################################
+log = "0.4"
+env_logger = "0.9"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+###################################
+#       Command-line / CLI        #
+###################################
+clap = "4.2"
+structopt = "0.3"
+
+###################################
+#       Gestion d'erreurs         #
+###################################
+anyhow = "1.0"
+thiserror = "1.0"
+
+###################################
+#         Utilitaires divers      #
+###################################
+once_cell = "1.17"
+lazy_static = "1.4"
+regex = "1.8"
+base64 = "0.21"
+uuid = "1.3"
+rand = "0.8"
+chrono = "0.4"
+itertools = "0.10"
+either = "1.8"
+
+###################################
+#       Crates pour images        #
+###################################
+image = "0.24"
+imageproc = "0.23"
+
+###################################
+#        Audio (Rust)             #
+###################################
+rodio = "0.17"
+cpal = "0.15"
+
+###################################
+#      Décodage / Vidéo           #
+###################################
+# GStreamer en Rust
+gstreamer = "0.17"
+gstreamer-app = "0.17"
+gstreamer-audio = "0.17"
+gstreamer-video = "0.17"
+gstreamer-rtsp = "0.17"
+gstreamer-rtsp-server = "0.17"
+gstreamer-pbutils = "0.17"
+
+# FFmpeg (bindings bas-niveau)
+ffmpeg-sys = "4.3.3"
+
+###################################
+#           wgpu / winit          #
+###################################
+wgpu = "0.16"
+pollster = "0.3"
+winit = "0.28"
+gilrs = "0.9"
+glam = "0.23"
+
+###################################
+#           Bevy + sous-crates    #
+###################################
+# Crate Bevy principale (version crates.io)
+bevy = "0.15.3"
+
+###################################
+#        Plugins Bevy divers      #
+###################################
+bevy_rapier2d = "0.20"
+bevy_rapier3d = "0.20"
+bevy_kira_audio = "0.12"
+bevy_ecs_tilemap = "0.10"
+
