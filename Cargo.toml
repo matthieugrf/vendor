@@ -5,6 +5,9 @@ edition = "2021"
 
 [dependencies]
 
-wgpu = "24.0.1"
-pollster = "0.4.0"
-winit = "0.30.9"
+###################################
+#           Bevy + sous-crates    #
+###################################
+# Crate Bevy principale (version crates.io)
+bevy = "0.15.3"
+
